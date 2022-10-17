@@ -76,27 +76,20 @@ void MultiInferenceMessage::get_slice_impl(std::shared_ptr<MultiMessage> new_mes
                                            std::size_t start,
                                            std::size_t stop) const
 {
-    std::cerr << "******* MultiInferenceMessage::get_slice_impl - 0" << std::endl << std::flush;
     auto sliced_message = DCHECK_NOTNULL(std::dynamic_pointer_cast<MultiInferenceMessage>(new_message));
 
     sliced_message->offset = start;
     sliced_message->count  = stop - start;
 
-    std::cerr << "******* MultiInferenceMessage::get_slice_impl - 1" << std::endl << std::flush;
     // If we have more inference rows than message rows, we need to use the seq_ids to figure out the slicing. This
     // will be slow and should be avoided at all costs
     if (this->count != this->mess_count && this->memory->has_input("seq_ids"))
     {
-        std::cerr << "******* MultiInferenceMessage::get_slice_impl - 2" << std::endl << std::flush;
         auto seq_ids = this->get_input("seq_ids");
-
-        std::cerr << "******* MultiInferenceMessage::get_slice_impl - 3" << std::endl << std::flush;
 
         // Determine the new start and stop before passing onto the base
         start = seq_ids.read_element<int32_t>({(TensorIndex)start, 0});
-        std::cerr << "******* MultiInferenceMessage::get_slice_impl - 4" << std::endl << std::flush;
-        stop = seq_ids.read_element<int32_t>({(TensorIndex)stop - 1, 0}) + 1;
-        std::cerr << "******* MultiInferenceMessage::get_slice_impl - 5" << std::endl << std::flush;
+        stop  = seq_ids.read_element<int32_t>({(TensorIndex)stop - 1, 0}) + 1;
     }
 
     // Pass onto the base
