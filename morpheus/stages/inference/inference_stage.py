@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import sys
 import typing
 from abc import abstractmethod
 from functools import partial
@@ -294,11 +295,18 @@ class InferenceStage(MultiMessageStage):
 
         out_batches = []
 
+        print("*********** sb: 0", file=sys.stderr, flush=True)
+        print(x.meta.df)
+        print("*********** sb: 0.1", file=sys.stderr, flush=True)
+        print(x.get_input("seq_ids"))
+        print("*********** sb: 0.2", file=sys.stderr, flush=True)
         id_array = cp.concatenate([cp.array([-1]), x.get_input("seq_ids")[:, 0], cp.array([-1])])
 
         diff_ids = cp.where(id_array[1:] != id_array[:-1])[0]
 
         diff_ids = diff_ids.tolist()
+
+        print("*********** sb: 1", file=sys.stderr, flush=True)
 
         head = 0
         tail = 0
@@ -314,14 +322,19 @@ class InferenceStage(MultiMessageStage):
 
             tail = i
 
+        print("*********** sb: 2", file=sys.stderr, flush=True)
         out_batches.append((diff_ids[head], diff_ids[tail]))
+        print("*********** sb: 2.1", file=sys.stderr, flush=True)
 
         out_resp = []
 
         for start, stop in out_batches:
-
+            print(f"*********** sb: 2.2 [{start}: {stop}]", file=sys.stderr, flush=True)
+            print(x)
             out_resp.append(x.get_slice(start, stop))
+            print("*********** sb: 2.3", file=sys.stderr, flush=True)
 
+        print("*********** sb: 3", file=sys.stderr, flush=True)
         assert len(out_resp) > 0
 
         return out_resp
