@@ -269,14 +269,11 @@ struct TensorObject final
         return TensorObject(copy);
     }
 
-    template <typename T = uint8_t>
-    std::vector<T> get_host_data() const
+    std::vector<uint8_t> get_host_data() const
     {
-        std::vector<T> out_data;
+        std::vector<uint8_t> out_data;
 
-        CHECK_EQ(this->bytes() % sizeof(T), 0) << "Bytes isnt divisible by type. Check the types are correct";
-
-        out_data.resize(this->bytes() / sizeof(T));
+        out_data.resize(this->bytes());
 
         SRF_CHECK_CUDA(cudaMemcpy(&out_data[0], this->data(), this->bytes(), cudaMemcpyDeviceToHost));
 
