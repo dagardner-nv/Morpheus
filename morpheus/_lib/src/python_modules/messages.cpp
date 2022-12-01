@@ -27,6 +27,7 @@
 #include "morpheus/messages/multi_inference_fil.hpp"
 #include "morpheus/messages/multi_inference_nlp.hpp"
 #include "morpheus/messages/multi_response.hpp"
+#include "morpheus/messages/multi_response_log_parsing.hpp"
 #include "morpheus/messages/multi_response_probs.hpp"
 #include "morpheus/objects/data_table.hpp"
 #include "morpheus/utilities/cudf_util.hpp"
@@ -234,6 +235,20 @@ PYBIND11_MODULE(messages, m)
         .def_property(
             "probs", &ResponseMemoryProbsInterfaceProxy::get_probs, &ResponseMemoryProbsInterfaceProxy::set_probs);
 
+    py::class_<ResponseMemoryLogParsing, ResponseMemory, std::shared_ptr<ResponseMemoryLogParsing>>(
+        m, "ResponseMemoryLogParsing")
+        .def(py::init<>(&ResponseMemoryLogParsingInterfaceProxy::init),
+             py::arg("count"),
+             py::arg("confidences"),
+             py::arg("labels"))
+        .def_property_readonly("count", &ResponseMemoryLogParsingInterfaceProxy::count)
+        .def_property("confidences",
+                      &ResponseMemoryLogParsingInterfaceProxy::get_confidences,
+                      &ResponseMemoryLogParsingInterfaceProxy::set_confidences)
+        .def_property("labels",
+                      &ResponseMemoryLogParsingInterfaceProxy::get_labels,
+                      &ResponseMemoryLogParsingInterfaceProxy::set_labels);
+
     py::class_<MultiResponseMessage, MultiMessage, std::shared_ptr<MultiResponseMessage>>(m, "MultiResponseMessage")
         .def(py::init<>(&MultiResponseMessageInterfaceProxy::init),
              py::arg("meta"),
@@ -260,6 +275,21 @@ PYBIND11_MODULE(messages, m)
         .def_property_readonly("offset", &MultiResponseProbsMessageInterfaceProxy::offset)
         .def_property_readonly("count", &MultiResponseProbsMessageInterfaceProxy::count)
         .def_property_readonly("probs", &MultiResponseProbsMessageInterfaceProxy::probs);
+
+    py::class_<MultiResponseLogParsingMessage, MultiResponseMessage, std::shared_ptr<MultiResponseLogParsingMessage>>(
+        m, "MultiResponseLogParsingMessage")
+        .def(py::init<>(&MultiResponseLogParsingMessageInterfaceProxy::init),
+             py::arg("meta"),
+             py::arg("mess_offset"),
+             py::arg("mess_count"),
+             py::arg("memory"),
+             py::arg("offset"),
+             py::arg("count"))
+        .def_property_readonly("memory", &MultiResponseLogParsingMessageInterfaceProxy::memory)
+        .def_property_readonly("offset", &MultiResponseLogParsingMessageInterfaceProxy::offset)
+        .def_property_readonly("count", &MultiResponseLogParsingMessageInterfaceProxy::count)
+        .def_property_readonly("confidences", &MultiResponseLogParsingMessageInterfaceProxy::confidences)
+        .def_property_readonly("labels", &MultiResponseLogParsingMessageInterfaceProxy::labels);
 
 #ifdef VERSION_INFO
     m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);
