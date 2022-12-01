@@ -23,6 +23,7 @@ add_library(morpheus
     ${MORPHEUS_LIB_ROOT}/src/messages/memory/inference_memory_nlp.cpp
     ${MORPHEUS_LIB_ROOT}/src/messages/memory/post_proc_memory_log_parsing.cpp
     ${MORPHEUS_LIB_ROOT}/src/messages/memory/response_memory.cpp
+    ${MORPHEUS_LIB_ROOT}/src/messages/memory/response_memory_ae.cpp
     ${MORPHEUS_LIB_ROOT}/src/messages/memory/response_memory_log_parsing.cpp
     ${MORPHEUS_LIB_ROOT}/src/messages/memory/response_memory_probs.cpp
     ${MORPHEUS_LIB_ROOT}/src/messages/memory/tensor_memory.cpp
@@ -33,6 +34,7 @@ add_library(morpheus
     ${MORPHEUS_LIB_ROOT}/src/messages/multi_inference_nlp.cpp
     ${MORPHEUS_LIB_ROOT}/src/messages/multi_post_proc_log_parsing.cpp
     ${MORPHEUS_LIB_ROOT}/src/messages/multi_response.cpp
+    ${MORPHEUS_LIB_ROOT}/src/messages/multi_response_ae.cpp
     ${MORPHEUS_LIB_ROOT}/src/messages/multi_response_log_parsing.cpp
     ${MORPHEUS_LIB_ROOT}/src/messages/multi_response_probs.cpp
     ${MORPHEUS_LIB_ROOT}/src/messages/multi_tensor.cpp

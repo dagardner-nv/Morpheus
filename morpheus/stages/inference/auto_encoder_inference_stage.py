@@ -18,12 +18,16 @@ import cupy as cp
 import numpy as np
 import pandas as pd
 
+import cudf
+
+import morpheus._lib.messages as _messages
 from morpheus.cli.register_stage import register_stage
 from morpheus.config import Config
 from morpheus.config import PipelineModes
 from morpheus.messages import MultiResponseAEMessage
 from morpheus.messages import ResponseMemory
 from morpheus.messages import ResponseMemoryAE
+from morpheus.messages import UserMessageMeta
 from morpheus.messages.multi_inference_ae_message import MultiInferenceAEMessage
 from morpheus.messages.multi_inference_message import MultiInferenceMessage
 from morpheus.stages.inference.inference_stage import InferenceStage
@@ -96,6 +100,8 @@ class _AutoEncoderInferenceWorker(InferenceWorker):
 
         """
         data = batch.get_meta(batch.meta.df.columns.intersection(self._feature_columns))
+        if isinstance(data, cudf.DataFrame):
+            data = data.to_pandas()
 
         explain_cols = [x + "_z_loss" for x in self._feature_columns] + ["max_abs_z", "mean_abs_z"]
         explain_df = pd.DataFrame(np.empty((batch.count, (len(self._feature_columns) + 2)), dtype=object),
@@ -153,8 +159,13 @@ class AutoEncoderInferenceStage(InferenceStage):
         # assert inf.mess_offset == saved_offset + saved_count
 
         res.explain_df.index = range(inf.mess_offset, inf.mess_offset + inf.mess_count)
+        inf_meta = inf.get_meta()
+        if isinstance(inf_meta, cudf.DataFrame):
+            inf_meta = inf_meta.to_pandas()
+
         for col in res.explain_df.columns:
-            inf.set_meta(col, res.explain_df[col])
+            ex_ser = res.explain_df[col]
+            inf_meta[col] = ex_ser
 
         probs = memory.get_output("probs")
 
@@ -171,9 +182,9 @@ class AutoEncoderInferenceStage(InferenceStage):
             for i, idx in enumerate(mess_ids):
                 probs[idx, :] = cp.maximum(probs[idx, :], res.probs[i, :])
 
-        return MultiResponseAEMessage(meta=inf.meta,
-                                      mess_offset=inf.mess_offset,
-                                      mess_count=inf.mess_count,
+        return MultiResponseAEMessage(meta=UserMessageMeta(inf_meta, inf.meta.user_id),
+                                      mess_offset=0,
+                                      mess_count=len(inf_meta),
                                       memory=memory,
                                       offset=inf.offset,
                                       count=inf.count)

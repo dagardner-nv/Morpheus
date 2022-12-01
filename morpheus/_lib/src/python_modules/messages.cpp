@@ -20,6 +20,7 @@
 #include "morpheus/messages/memory/inference_memory_nlp.hpp"
 #include "morpheus/messages/memory/post_proc_memory_log_parsing.hpp"
 #include "morpheus/messages/memory/response_memory.hpp"
+#include "morpheus/messages/memory/response_memory_ae.hpp"
 #include "morpheus/messages/memory/response_memory_probs.hpp"
 #include "morpheus/messages/memory/tensor_memory.hpp"
 #include "morpheus/messages/meta.hpp"
@@ -29,6 +30,7 @@
 #include "morpheus/messages/multi_inference_nlp.hpp"
 #include "morpheus/messages/multi_post_proc_log_parsing.hpp"
 #include "morpheus/messages/multi_response.hpp"
+#include "morpheus/messages/multi_response_ae.hpp"
 #include "morpheus/messages/multi_response_log_parsing.hpp"
 #include "morpheus/messages/multi_response_probs.hpp"
 #include "morpheus/messages/user_meta.hpp"
@@ -113,6 +115,11 @@ PYBIND11_MODULE(messages, m)
 
     srf::node::EdgeConnector<std::shared_ptr<morpheus::MultiResponseProbsMessage>,
                              std::shared_ptr<morpheus::MultiMessage>>::register_converter();
+
+    /*
+    srf::node::EdgeConnector<std::shared_ptr<morpheus::MultiResponseAEMessage>,
+                             std::shared_ptr<morpheus::MultiResponseProbsMessage>>::register_converter();
+    */
 
     py::class_<MessageMeta, std::shared_ptr<MessageMeta>>(m, "MessageMeta")
         .def(py::init<>(&MessageMetaInterfaceProxy::init_python), py::arg("df"))
@@ -245,6 +252,14 @@ PYBIND11_MODULE(messages, m)
         .def_property(
             "probs", &ResponseMemoryProbsInterfaceProxy::get_probs, &ResponseMemoryProbsInterfaceProxy::set_probs);
 
+    /*
+    py::class_<ResponseMemoryAE, ResponseMemoryProbs, std::shared_ptr<ResponseMemoryAE>>(m, "ResponseMemoryAE")
+        .def(py::init<>(&ResponseMemoryAEInterfaceProxy::init), py::arg("count"), py::arg("probs"))
+        .def_property_readonly("count", &ResponseMemoryAEInterfaceProxy::count)
+        .def_property("probs", &ResponseMemoryAEInterfaceProxy::get_probs, &ResponseMemoryAEInterfaceProxy::set_probs);
+
+    */
+
     py::class_<ResponseMemoryLogParsing, ResponseMemory, std::shared_ptr<ResponseMemoryLogParsing>>(
         m, "ResponseMemoryLogParsing")
         .def(py::init<>(&ResponseMemoryLogParsingInterfaceProxy::init),
@@ -307,6 +322,23 @@ PYBIND11_MODULE(messages, m)
         .def_property_readonly("offset", &MultiResponseProbsMessageInterfaceProxy::offset)
         .def_property_readonly("count", &MultiResponseProbsMessageInterfaceProxy::count)
         .def_property_readonly("probs", &MultiResponseProbsMessageInterfaceProxy::probs);
+
+    /*
+    py::class_<MultiResponseAEMessage, MultiResponseProbsMessage, std::shared_ptr<MultiResponseAEMessage>>(
+        m, "MultiResponseAEMessage")
+        .def(py::init<>(&MultiResponseAEMessageInterfaceProxy::init),
+             py::arg("meta"),
+             py::arg("mess_offset"),
+             py::arg("mess_count"),
+             py::arg("memory"),
+             py::arg("offset"),
+             py::arg("count"),
+             py::arg("user_id") = "")
+        .def_property_readonly("memory", &MultiResponseAEMessageInterfaceProxy::memory)
+        .def_property_readonly("offset", &MultiResponseAEMessageInterfaceProxy::offset)
+        .def_property_readonly("count", &MultiResponseAEMessageInterfaceProxy::count)
+        .def_property_readonly("probs", &MultiResponseAEMessageInterfaceProxy::probs);
+    */
 
     py::class_<MultiResponseLogParsingMessage, MultiResponseMessage, std::shared_ptr<MultiResponseLogParsingMessage>>(
         m, "MultiResponseLogParsingMessage")

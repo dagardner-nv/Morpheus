@@ -19,6 +19,8 @@ from functools import partial
 import cupy as cp
 import srf
 
+import cudf
+
 from morpheus.cli.register_stage import register_stage
 from morpheus.config import Config
 from morpheus.config import PipelineModes
@@ -86,6 +88,9 @@ class PreprocessAEStage(PreprocessBaseStage):
         """
 
         meta_df = x.get_meta(x.meta.df.columns.intersection(feature_columns))
+        if isinstance(meta_df, cudf.DataFrame):
+            meta_df = meta_df.to_pandas()
+
         autoencoder = x.model
         scores_mean = x.train_scores_mean
         scores_std = x.train_scores_std
