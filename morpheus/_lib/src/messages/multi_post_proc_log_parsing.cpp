@@ -103,7 +103,7 @@ std::shared_ptr<morpheus::PostprocMemoryLogParsing> MultiPostprocLogParsingMessa
 
 std::size_t MultiPostprocLogParsingMessageInterfaceProxy::offset(MultiPostprocLogParsingMessage &self)
 {
-    return self.count;
+    return self.offset;
 }
 
 std::size_t MultiPostprocLogParsingMessageInterfaceProxy::count(MultiPostprocLogParsingMessage &self)

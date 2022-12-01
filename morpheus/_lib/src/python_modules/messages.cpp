@@ -337,8 +337,8 @@ PYBIND11_MODULE(messages, m)
         .def_property_readonly("count", &MultiPostprocLogParsingMessageInterfaceProxy::count)
         .def_property_readonly("confidences", &MultiPostprocLogParsingMessageInterfaceProxy::confidences)
         .def_property_readonly("labels", &MultiPostprocLogParsingMessageInterfaceProxy::labels)
-        .def_property_readonly("input_ids", &MultiPostprocLogParsingMessageInterfaceProxy::confidences)
-        .def_property_readonly("seq_ids", &MultiPostprocLogParsingMessageInterfaceProxy::labels);
+        .def_property_readonly("input_ids", &MultiPostprocLogParsingMessageInterfaceProxy::input_ids)
+        .def_property_readonly("seq_ids", &MultiPostprocLogParsingMessageInterfaceProxy::seq_ids);
 
 #ifdef VERSION_INFO
     m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);
