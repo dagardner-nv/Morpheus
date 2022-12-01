@@ -18,6 +18,7 @@
 #include "morpheus/messages/memory/inference_memory.hpp"
 #include "morpheus/messages/memory/inference_memory_fil.hpp"
 #include "morpheus/messages/memory/inference_memory_nlp.hpp"
+#include "morpheus/messages/memory/post_proc_memory_log_parsing.hpp"
 #include "morpheus/messages/memory/response_memory.hpp"
 #include "morpheus/messages/memory/response_memory_probs.hpp"
 #include "morpheus/messages/memory/tensor_memory.hpp"
@@ -26,9 +27,11 @@
 #include "morpheus/messages/multi_inference.hpp"
 #include "morpheus/messages/multi_inference_fil.hpp"
 #include "morpheus/messages/multi_inference_nlp.hpp"
+#include "morpheus/messages/multi_post_proc_log_parsing.hpp"
 #include "morpheus/messages/multi_response.hpp"
 #include "morpheus/messages/multi_response_log_parsing.hpp"
 #include "morpheus/messages/multi_response_probs.hpp"
+#include "morpheus/messages/user_meta.hpp"
 #include "morpheus/objects/data_table.hpp"
 #include "morpheus/utilities/cudf_util.hpp"
 
@@ -116,6 +119,13 @@ PYBIND11_MODULE(messages, m)
         .def_property_readonly("count", &MessageMetaInterfaceProxy::count)
         .def_property_readonly("df", &MessageMetaInterfaceProxy::get_data_frame, py::return_value_policy::move)
         .def_static("make_from_file", &MessageMetaInterfaceProxy::init_cpp);
+
+    py::class_<UserMessageMeta, std::shared_ptr<UserMessageMeta>>(m, "UserMessageMeta")
+        .def(py::init<>(&UserMessageMetaInterfaceProxy::init_python), py::arg("df"), py::arg("user_id"))
+        .def_property_readonly("count", &UserMessageMetaInterfaceProxy::count)
+        .def_property_readonly("df", &UserMessageMetaInterfaceProxy::get_data_frame, py::return_value_policy::move)
+        .def_property_readonly("user_id", &UserMessageMetaInterfaceProxy::user_id)
+        .def_static("make_from_file", &UserMessageMetaInterfaceProxy::init_cpp);
 
     py::class_<MultiMessage, std::shared_ptr<MultiMessage>>(m, "MultiMessage")
         .def(py::init<>(&MultiMessageInterfaceProxy::init),
@@ -249,6 +259,28 @@ PYBIND11_MODULE(messages, m)
                       &ResponseMemoryLogParsingInterfaceProxy::get_labels,
                       &ResponseMemoryLogParsingInterfaceProxy::set_labels);
 
+    py::class_<PostprocMemoryLogParsing, InferenceMemory, std::shared_ptr<PostprocMemoryLogParsing>>(
+        m, "PostprocMemoryLogParsing")
+        .def(py::init<>(&PostprocMemoryLogParsingInterfaceProxy::init),
+             py::arg("count"),
+             py::arg("confidences"),
+             py::arg("labels"),
+             py::arg("input_ids"),
+             py::arg("seq_ids"))
+        .def_property_readonly("count", &PostprocMemoryLogParsingInterfaceProxy::count)
+        .def_property("confidences",
+                      &PostprocMemoryLogParsingInterfaceProxy::get_confidences,
+                      &PostprocMemoryLogParsingInterfaceProxy::set_confidences)
+        .def_property("labels",
+                      &PostprocMemoryLogParsingInterfaceProxy::get_labels,
+                      &PostprocMemoryLogParsingInterfaceProxy::set_labels)
+        .def_property("input_ids",
+                      &PostprocMemoryLogParsingInterfaceProxy::get_input_ids,
+                      &PostprocMemoryLogParsingInterfaceProxy::set_input_ids)
+        .def_property("seq_ids",
+                      &PostprocMemoryLogParsingInterfaceProxy::get_seq_ids,
+                      &PostprocMemoryLogParsingInterfaceProxy::set_seq_ids);
+
     py::class_<MultiResponseMessage, MultiMessage, std::shared_ptr<MultiResponseMessage>>(m, "MultiResponseMessage")
         .def(py::init<>(&MultiResponseMessageInterfaceProxy::init),
              py::arg("meta"),
@@ -290,6 +322,23 @@ PYBIND11_MODULE(messages, m)
         .def_property_readonly("count", &MultiResponseLogParsingMessageInterfaceProxy::count)
         .def_property_readonly("confidences", &MultiResponseLogParsingMessageInterfaceProxy::confidences)
         .def_property_readonly("labels", &MultiResponseLogParsingMessageInterfaceProxy::labels);
+
+    py::class_<MultiPostprocLogParsingMessage, MultiInferenceMessage, std::shared_ptr<MultiPostprocLogParsingMessage>>(
+        m, "MultiPostprocLogParsingMessage")
+        .def(py::init<>(&MultiPostprocLogParsingMessageInterfaceProxy::init),
+             py::arg("meta"),
+             py::arg("mess_offset"),
+             py::arg("mess_count"),
+             py::arg("memory"),
+             py::arg("offset"),
+             py::arg("count"))
+        .def_property_readonly("memory", &MultiPostprocLogParsingMessageInterfaceProxy::memory)
+        .def_property_readonly("offset", &MultiPostprocLogParsingMessageInterfaceProxy::offset)
+        .def_property_readonly("count", &MultiPostprocLogParsingMessageInterfaceProxy::count)
+        .def_property_readonly("confidences", &MultiPostprocLogParsingMessageInterfaceProxy::confidences)
+        .def_property_readonly("labels", &MultiPostprocLogParsingMessageInterfaceProxy::labels)
+        .def_property_readonly("input_ids", &MultiPostprocLogParsingMessageInterfaceProxy::confidences)
+        .def_property_readonly("seq_ids", &MultiPostprocLogParsingMessageInterfaceProxy::labels);
 
 #ifdef VERSION_INFO
     m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);

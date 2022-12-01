@@ -49,7 +49,7 @@ class MessageMeta(MessageBase, cpp_class=_messages.MessageMeta):
 
 
 @dataclasses.dataclass
-class UserMessageMeta(MessageMeta, cpp_class=None):
+class UserMessageMeta(MessageMeta, cpp_class=_messages.UserMessageMeta):
     """
     This class extends MessageMeta to also hold userid corresponding to batched metadata.
 

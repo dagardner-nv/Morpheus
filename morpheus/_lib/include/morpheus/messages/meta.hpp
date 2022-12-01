@@ -86,7 +86,7 @@ class MessageMeta
     static std::shared_ptr<MessageMeta> create_from_cpp(cudf::io::table_with_metadata&& data_table,
                                                         int index_col_count = 0);
 
-  private:
+  protected:
     MessageMeta(std::shared_ptr<IDataTable> data);
 
     /**

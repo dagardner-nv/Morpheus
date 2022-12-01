@@ -36,6 +36,7 @@ add_library(morpheus
     ${MORPHEUS_LIB_ROOT}/src/messages/multi_response_log_parsing.cpp
     ${MORPHEUS_LIB_ROOT}/src/messages/multi_response_probs.cpp
     ${MORPHEUS_LIB_ROOT}/src/messages/multi_tensor.cpp
+    ${MORPHEUS_LIB_ROOT}/src/messages/user_meta.cpp
     ${MORPHEUS_LIB_ROOT}/src/objects/fiber_queue.cpp
     ${MORPHEUS_LIB_ROOT}/src/objects/file_types.cpp
     ${MORPHEUS_LIB_ROOT}/src/objects/wrapped_tensor.cpp
