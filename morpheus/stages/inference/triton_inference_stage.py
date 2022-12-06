@@ -31,6 +31,8 @@ import tritonclient.grpc as tritonclient
 from tritonclient.utils import InferenceServerException
 from tritonclient.utils import triton_to_np_dtype
 
+import cudf
+
 import morpheus._lib.stages as _stages
 from morpheus.cli.register_stage import register_stage
 from morpheus.config import Config
@@ -815,7 +817,11 @@ class TritonInferenceAE(_TritonInferenceWorker):
 
         output = {output.mapped_name: result.as_numpy(output.name) for output in self._outputs.values()}
 
-        data = self._autoencoder.prepare_df(batch.get_meta())
+        data = batch.get_meta()
+        if isinstance(data, cudf.DataFrame):
+            data = data.to_pandas()
+
+        data = self._autoencoder.prepare_df(data)
         num_target, bin_target, codes = self._autoencoder.compute_targets(data)
         mse_loss = self._autoencoder.mse(torch.as_tensor(output["num"], device='cuda'), num_target)
         net_loss = [mse_loss.data]
