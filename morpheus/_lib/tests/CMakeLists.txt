@@ -54,4 +54,33 @@ install(
     COMPONENT Wheel
 )
 
+add_executable(test_matxdg
+  test_matx.cu
+)
+
+set_target_properties(
+  test_matxdg
+    PROPERTIES
+      CUDA_STANDARD 17
+      CUDA_STANDARD_REQUIRED ON
+      C_INCLUDE_WHAT_YOU_USE ""
+      CXX_INCLUDE_WHAT_YOU_USE ""
+      EXPORT_COMPILE_COMMANDS OFF
+)
+
+
+target_link_libraries(test_matxdg
+  PRIVATE
+    matx::matx
+    rmm::rmm
+)
+
+install(
+    TARGETS
+      test_matxdg
+    RUNTIME DESTINATION
+      "${MORPHEUS_LIB_INSTALL_DIR}/tests"
+    COMPONENT Wheel
+)
+
 list(POP_BACK CMAKE_MESSAGE_CONTEXT)
