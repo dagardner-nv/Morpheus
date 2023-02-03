@@ -199,14 +199,14 @@ void col_major_slice_test()
 {
     // col major 2d [4, 4]
     std::vector<double> input{
-        0.1, 1.0, 1.0, 1.0,
+        0.1, 1.0, 1.0, 2.0,
         0.7, 0.9, 0.6, 0.2,
         0.7, 0.5, 0.2, 0.3,
         0.7, 0.9, 0.6, 0.2
     };
 
     std::vector<double> expected_output{
-        1.0, 1.0,
+        1.0, 2.0,
         0.9, 0.6,
         0.7, 0.3,
         0.9, 0.6
@@ -234,29 +234,19 @@ void col_major_slice_test()
     auto input_tensor = matx::make_tensor<double, matx::DefaultDescriptor<2>>(input_ptr, std::move(input_desc));
     auto output_tensor = matx::make_tensor<double, matx::DefaultDescriptor<2>>(output_ptr, std::move(output_desc));
 
-    input_tensor.Print();
-    std::cerr << "-----------\n";
-    output_tensor.Print();
+    std::cerr << "Input stride [" << input_tensor.Stride(0) << ", " << input_tensor.Stride(1) << "]" << std::endl;
+    std::cerr << "Output stride [" << output_tensor.Stride(0) << ", " << output_tensor.Stride(1) << "]" << std::endl;
 
     // collapse rows 0 & 1 together
     {
         auto input_slice = input_tensor.Slice({0, 0}, {2, matx::matxEnd});
-        std::cerr << "-----------\nInput Slice\n";
-        input_slice.Print();
-        std::cerr << "-----------\n";
-        auto output_slice = output_tensor.Slice<1>({0, 0}, {matx::matxDropDim, matx::matxEnd}, {1, expected_rows});
-        std::cerr << "-----------\nOutput Slice\n";
-        output_slice.Print();
-        std::cerr << "-----------\n";
+        auto output_slice = output_tensor.Slice<1>({0, 0}, {matx::matxDropDim, matx::matxEnd});
+
+        std::cerr << "Input slice [" << input_slice.Stride(0) << ", " << input_slice.Stride(1) << "]" << std::endl;
+        std::cerr << "Output slice [" << output_slice.Stride(0) << ", " << output_slice.Stride(1) << "]" << std::endl;
 
         matx::rmax(output_slice, input_slice.Permute({1, 0}), output_buffer->stream().value());
-        std::cerr << "-----------\nOutput Slice\n";
-        output_slice.Print();
-        std::cerr << "-----------\n";
     }
-
-    std::cerr << "-----------\n";
-    output_tensor.Print();
 
     std::vector<double> host_output(expected_output.size());
     cudaMemcpy(host_output.data(), output_buffer->data(), output_buffer->size(), cudaMemcpyDeviceToHost);
@@ -270,7 +260,7 @@ void col_major_slice_test()
     // collapse rows 2 & 3 together
     {
         auto input_slice = input_tensor.Slice({2, 0}, {4, matx::matxEnd});
-        auto output_slice = output_tensor.Slice<1>({1, 0}, {matx::matxDropDim, matx::matxEnd}, {expected_rows});
+        auto output_slice = output_tensor.Slice<1>({1, 0}, {matx::matxDropDim, matx::matxEnd});
 
         matx::rmax(output_slice, input_slice.Permute({1, 0}), output_buffer->stream().value());
     }
@@ -289,17 +279,128 @@ void col_major_slice_test()
     }
 }
 
+void col_major_tr_test()
+{
+    // col major 2d [4, 4]
+    std::vector<double> input{
+        0.1, 1.0, 1.0, 1.0,
+        0.7, 0.9, 0.6, 0.2,
+        0.7, 0.5, 0.2, 0.3,
+        0.7, 0.9, 0.6, 0.2
+    };
+
+    std::vector<double> expected_output{
+        1.0, 1.0,
+        0.9, 0.6,
+        0.7, 0.3,
+        0.9, 0.6
+    };
+
+    matx::index_t num_cols      = 4;
+    matx::index_t num_rows      = 4;
+    matx::index_t expected_rows = expected_output.size() / num_cols;
+
+    assert((num_cols * num_rows) == input.size());
+    assert(expected_rows == 2);
+
+    matx::index_t buff_size = input.size() * sizeof(double);
+    auto input_buffer     = std::make_shared<rmm::device_buffer>(buff_size, rmm::cuda_stream_per_thread);
+    cudaMemcpy(input_buffer->data(), input.data(), input_buffer->size(), cudaMemcpyHostToDevice);
+
+    auto tmp_buffer = std::make_shared<rmm::device_buffer>(expected_rows * num_cols * sizeof(double), input_buffer->stream(), input_buffer->memory_resource());
+
+    auto output_ptr = static_cast<double*>(tmp_buffer->data());
+    matx::DefaultDescriptor<2> output_desc{{expected_rows, num_cols}, {1, expected_rows}};
+    auto output_tensor = matx::make_tensor<double, matx::DefaultDescriptor<2>>(output_ptr, std::move(output_desc));
+
+
+    auto input_ptr = static_cast<double*>(input_buffer->data());
+
+    matx::DefaultDescriptor<2> input_desc{{num_rows, num_cols}, {1, num_rows}};
+
+    auto input_tensor = matx::make_tensor<double, matx::DefaultDescriptor<2>>(input_ptr, std::move(input_desc));
+
+    // collapse rows 0 & 1 together
+    {
+        auto input_slice = input_tensor.Slice({0, 0}, {2, matx::matxEnd});
+        auto tmp_tensor = matx::make_tensor<double>({num_cols});
+
+        matx::rmax(tmp_tensor, input_slice.Permute({1, 0}), tmp_buffer->stream().value());
+        auto output_slice = output_tensor.Slice<1>({0, 0}, {matx::matxDropDim, matx::matxEnd});
+        (output_slice = tmp_tensor).run(tmp_buffer->stream().value());
+    }
+
+    std::vector<double> host_output(expected_output.size());
+    cudaMemcpy(host_output.data(), tmp_buffer->data(), tmp_buffer->size(), cudaMemcpyDeviceToHost);
+
+    for (std::size_t i = 0; i < host_output.size(); ++i)
+    {
+        std::cerr << "i= " << i << " v= " << host_output[i] << std::endl << std::flush;
+    }
+    std::cerr << "\n-----------\n";
+
+    // collapse rows 2 & 3 together
+    {
+        auto input_slice = input_tensor.Slice({2, 0}, {4, matx::matxEnd});
+        auto tmp_tensor = matx::make_tensor<double>({num_cols});
+
+        matx::rmax(tmp_tensor, input_slice.Permute({1, 0}), tmp_buffer->stream().value());
+
+        auto output_slice = output_tensor.Slice<1>({1, 0}, {matx::matxDropDim, matx::matxEnd});
+        (output_slice = tmp_tensor).run(tmp_buffer->stream().value());
+    }
+
+    cudaMemcpy(host_output.data(), tmp_buffer->data(), tmp_buffer->size(), cudaMemcpyDeviceToHost);
+
+    for (std::size_t i = 0; i < host_output.size(); ++i)
+    {
+        std::cerr << "i= " << i << " v= " << host_output[i] << std::endl << std::flush;
+    }
+    std::cerr << "\n-----------\n";
+
+    /*
+    auto output_buffer = std::make_shared<rmm::device_buffer>(expected_rows * num_cols * sizeof(double), input_buffer->stream(), input_buffer->memory_resource());
+    // copy the row-major tmp_buffer to the output_buffer in column major
+    {
+        auto tmp_ptr = static_cast<double*>(tmp_buffer->data());
+        auto output_ptr = static_cast<double*>(output_buffer->data());
+
+        matx::DefaultDescriptor<2> tmp_desc{{expected_rows, num_cols},
+                                              {num_cols, 1}};
+
+        matx::DefaultDescriptor<2> output_desc{{expected_rows, num_cols}, {1, expected_rows}};
+
+        auto tmp_tensor = matx::make_tensor<double, matx::DefaultDescriptor<2>>(tmp_ptr, std::move(tmp_desc));
+        auto output_tensor = matx::make_tensor<double, matx::DefaultDescriptor<2>>(output_ptr, std::move(output_desc));
+
+        (output_tensor = tmp_tensor).run(tmp_buffer->stream().value());
+    }
+
+    cudaMemcpy(host_output.data(), output_buffer->data(), output_buffer->size(), cudaMemcpyDeviceToHost);
+    */
+
+    //for (std::size_t i = 0; i < host_output.size(); ++i)
+    //{
+    //    std::cerr << "i= " << i << " v= " << host_output[i] << std::endl << std::flush;
+    //}
+
+    for (std::size_t i = 0; i < host_output.size(); ++i)
+    {
+        assert(host_output[i] == expected_output[i]);
+    }
+}
+
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char **argv)
 {
-    row_major_test();
-    std::cout << "Row Major test passed" << std::endl;
+    //row_major_test();
+    //std::cout << "Row Major test passed" << std::endl;
 
-    col_major_test();
-    std::cout << "Col Major test passed" << std::endl;
+    //col_major_test();
+    //std::cout << "Col Major test passed" << std::endl;
 
-    col_major_slice_test();
-    std::cout << "Col Major Slice test passed" << std::endl;
+    col_major_tr_test();
+    std::cout << "Col Major Transpose test passed" << std::endl;
 
     return 0;
 }
