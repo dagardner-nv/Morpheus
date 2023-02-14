@@ -97,6 +97,13 @@ def pytest_addoption(parser: pytest.Parser):
     )
 
     parser.addoption(
+        "--run_dfp",
+        action="store_true",
+        dest="run_dfp",
+        help="Run DFP tests that would otherwise be skipped",
+    )
+
+    parser.addoption(
         "--run_benchmark",
         action="store_true",
         dest="run_benchmark",
@@ -147,6 +154,10 @@ def pytest_runtest_setup(item):
     if (not item.config.getoption("--run_kafka")):
         if (item.get_closest_marker("kafka") is not None):
             pytest.skip("Skipping Kafka tests by default. Use --run_kafka to enable")
+
+    if (not item.config.getoption("--run_dfp")):
+        if (item.get_closest_marker("dfp") is not None):
+            pytest.skip("Skipping DFP tests by default. Use --run_dfp to enable")
 
     if (not item.config.getoption("--run_benchmark")):
         if (item.get_closest_marker("benchmark") is not None):

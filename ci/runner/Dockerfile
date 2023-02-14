@@ -93,3 +93,22 @@ RUN git clone https://gitlab.com/karolinepauls/pytest-kafka.git /opt/pytest-kafk
     cd /opt/pytest-kafka && \
     source activate ${PROJ_NAME} && \
     python setup.py develop
+
+# ============ test ==================
+FROM test as dfp-test
+
+ARG PROJ_NAME
+
+# Install additional Dependencies needed by DFP
+COPY examples/digital_fingerprinting/production/conda_env.yml /tmp/conda/dfp_conda.yml
+
+RUN source activate ${PROJ_NAME} && \
+    CONDA_ALWAYS_YES=true /opt/conda/bin/mamba env update -n ${PROJ_NAME} -q --file /tmp/conda/dfp_conda.yml && \
+    conda clean -afy && \
+    rm -rf /tmp/conda
+
+COPY examples/digital_fingerprinting/fetch_example_data.py /tmp/fetch_example_data.py
+
+RUN source activate ${PROJ_NAME} && \
+    python /tmp/fetch_example_data.py all  && \
+    rm -f /tmp/fetch_example_data.py
