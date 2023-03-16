@@ -130,6 +130,8 @@ add_custom_target(${PROJECT_NAME}_style_checks
 
 morpheus_utils_python_configure()
 
+include(get_arrow)
+
 # Include the main morpheus code
 morpheus_utils_create_python_package(morpheus
     PROJECT_DIRECTORY "${CMAKE_SOURCE_DIR}"
