@@ -111,7 +111,13 @@ std::shared_ptr<MessageMeta> MultiMessage::copy_meta_ranges(const std::vector<Ra
     auto table_info                       = this->meta->get_info();
     std::vector<std::string> column_names = table_info.get_column_names();
     column_names.insert(column_names.begin(), std::string());  // cudf id col
-    cudf::io::table_metadata metadata{std::move(column_names)};
+
+
+    cudf::io::table_metadata metadata{};
+    for (auto& name : column_names)
+    {
+        metadata.schema_info.emplace_back(cudf::io::column_name_info{name});
+    }
 
     auto table_view                     = table_info.get_view();
     auto sliced_views                   = cudf::slice(table_view, cudf_ranges);

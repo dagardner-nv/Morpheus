@@ -43,16 +43,10 @@ namespace morpheus {
 
 std::vector<std::string> get_column_names_from_table(const cudf::io::table_with_metadata& table)
 {
-    DCHECK(!(!table.metadata.column_names.empty() && !table.metadata.schema_info.empty()))
+    DCHECK(!table.metadata.schema_info.empty())
         << "Both column_names and schema_info were set on the table_with_metadata object. Defaulting to column_names";
 
-    // If column_names is populated, use that
-    if (!table.metadata.column_names.empty())
-    {
-        return table.metadata.column_names;
-    }
-
-    // Otherwise, use schema_info
+    // use schema_info
     if (!table.metadata.schema_info.empty())
     {
         return foreach_map(table.metadata.schema_info, [](auto schema) { return schema.name; });
