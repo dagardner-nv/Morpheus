@@ -244,6 +244,7 @@ def run_pipeline(train_users,
     pipeline = LinearPipeline(config)
 
     pipeline.set_source(MultiFileSource(config, filenames=list(kwargs["input_file"])))
+    pipeline.add_stage(MonitorStage(config, description="MultiFileSource", delayed_start=True))
 
     # Batch files into buckets by time. Use the default ISO date extractor from the filename
     pipeline.add_stage(
@@ -254,6 +255,7 @@ def run_pipeline(train_users,
                             start_time=start_time,
                             end_time=end_time))
 
+    pipeline.add_stage(MonitorStage(config, description="DFPFileBatcherStage", delayed_start=True))
     # Output is S3 Buckets. Convert to DataFrames. This caches downloaded S3 data
     pipeline.add_stage(
         DFPFileToDataFrameStage(config,
@@ -264,7 +266,7 @@ def run_pipeline(train_users,
                                 },
                                 cache_dir=cache_dir))
 
-    pipeline.add_stage(MonitorStage(config, description="Input data rate"))
+    pipeline.add_stage(MonitorStage(config, description="Input data rate", delayed_start=True))
 
     # This will split users or just use one single user
     pipeline.add_stage(
@@ -274,6 +276,7 @@ def run_pipeline(train_users,
                            skip_users=skip_users,
                            only_users=only_users))
 
+    pipeline.add_stage(MonitorStage(config, description="DFPSplitUsersStage", delayed_start=True))
     # Next, have a stage that will create rolling windows
     pipeline.add_stage(
         DFPRollingWindowStage(
@@ -284,9 +287,11 @@ def run_pipeline(train_users,
             max_history="60d" if is_training else "1d",
             cache_dir=cache_dir))
 
+    pipeline.add_stage(MonitorStage(config, description="DFPRollingWindowStage", delayed_start=True))
     # Output is UserMessageMeta -- Cached frame set
     pipeline.add_stage(DFPPreprocessingStage(config, input_schema=preprocess_schema))
 
+    pipeline.add_stage(MonitorStage(config, description="DFPPreprocessingStage", delayed_start=True))
     model_name_formatter = "DFP-duo-{user_id}"
     experiment_name_formatter = "dfp/duo/training/{reg_model_name}"
 
@@ -295,7 +300,7 @@ def run_pipeline(train_users,
         # Finally, perform training which will output a model
         pipeline.add_stage(DFPTraining(config, validation_size=0.10))
 
-        pipeline.add_stage(MonitorStage(config, description="Training rate", smoothing=0.001))
+        pipeline.add_stage(MonitorStage(config, description="Training rate", smoothing=0.001, delayed_start=True))
 
         # Write that model to MLFlow
         pipeline.add_stage(
@@ -305,14 +310,20 @@ def run_pipeline(train_users,
     else:
         pipeline.add_stage(DFPInferenceStage(config, model_name_formatter=model_name_formatter))
 
-        pipeline.add_stage(MonitorStage(config, description="Inference rate", smoothing=0.001))
+        pipeline.add_stage(MonitorStage(config, description="Inference rate", smoothing=0.001, delayed_start=True))
 
         pipeline.add_stage(
             FilterDetectionsStage(config, threshold=2.0, filter_source=FilterSource.DATAFRAME, field_name='mean_abs_z'))
+
+        pipeline.add_stage(MonitorStage(config, description="FilterDetectionsStage", delayed_start=True))
         pipeline.add_stage(DFPPostprocessingStage(config))
+
+        pipeline.add_stage(MonitorStage(config, description="DFPPostprocessingStage", delayed_start=True))
 
         # Exclude the columns we don't want in our output
         pipeline.add_stage(SerializeStage(config, exclude=['batch_count', 'origin_hash', '_row_hash', '_batch_id']))
+
+        pipeline.add_stage(MonitorStage(config, description="SerializeStage", delayed_start=True))
 
         pipeline.add_stage(WriteToFileStage(config, filename="dfp_detections_duo.csv", overwrite=True))
 
