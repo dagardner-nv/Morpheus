@@ -29,11 +29,13 @@
 #include "morpheus/objects/tensor_object.hpp"  // for TensorObject
 #include "morpheus/objects/wrapped_tensor.hpp"
 #include "morpheus/utilities/cudf_util.hpp"
+#include "morpheus/utilities/rest_server.hpp"
 #include "morpheus/version.hpp"
 
 #include <mrc/utils/string_utils.hpp>
 #include <nlohmann/json.hpp>
 #include <pybind11/attr.h>
+#include <pybind11/cast.h>
 #include <pybind11/pybind11.h>
 
 #include <memory>
@@ -116,6 +118,20 @@ PYBIND11_MODULE(common, _module)
         .value("Auto", FilterSource::Auto)
         .value("TENSOR", FilterSource::TENSOR)
         .value("DATAFRAME", FilterSource::DATAFRAME);
+
+    py::class_<RestServer, std::shared_ptr<RestServer>>(_module, "RestServer")
+        .def(py::init<>(&RestServerInterfaceProxy::init),
+             py::arg("parse_fn"),
+             py::arg("bind_address")     = "127.0.0.1",
+             py::arg("port")             = 8080,
+             py::arg("endpoint")         = "/message",
+             py::arg("method")           = "POST",
+             py::arg("num_threads")      = 1,
+             py::arg("max_payload_size") = DefaultMaxPayloadSize,
+             py::arg("request_timeout")  = 30)
+        .def("start", &RestServerInterfaceProxy::start)
+        .def("stop", &RestServerInterfaceProxy::stop)
+        .def("is_running", &RestServerInterfaceProxy::is_running);
 
     _module.attr("__version__") =
         MRC_CONCAT_STR(morpheus_VERSION_MAJOR << "." << morpheus_VERSION_MINOR << "." << morpheus_VERSION_PATCH);

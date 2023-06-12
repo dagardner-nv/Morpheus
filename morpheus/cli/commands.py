@@ -641,6 +641,8 @@ add_command("from-cloudtrail", "morpheus.stages.input.cloud_trail_source_stage.C
 add_command("from-duo", "morpheus.stages.input.duo_source_stage.DuoSourceStage", modes=AE_ONLY)
 add_command("from-file", "morpheus.stages.input.file_source_stage.FileSourceStage", modes=NOT_AE)
 add_command("from-kafka", "morpheus.stages.input.kafka_source_stage.KafkaSourceStage", modes=NOT_AE)
+add_command("from-rest", "morpheus.stages.input.rest_source_stage.RestSourceStage", modes=ALL)
+add_command("from-rest-client", "morpheus.stages.input.rest_client_source_stage.RestClientSourceStage", modes=ALL)
 add_command("gen-viz", "morpheus.stages.postprocess.generate_viz_frames_stage.GenerateVizFramesStage", modes=NLP_ONLY)
 add_command("inf-identity", "morpheus.stages.inference.identity_inference_stage.IdentityInferenceStage", modes=NOT_AE)
 add_command("inf-pytorch",
@@ -657,6 +659,8 @@ add_command("serialize", "morpheus.stages.postprocess.serialize_stage.SerializeS
 add_command("timeseries", "morpheus.stages.postprocess.timeseries_stage.TimeSeriesStage", modes=AE_ONLY)
 add_command("to-file", "morpheus.stages.output.write_to_file_stage.WriteToFileStage", modes=ALL)
 add_command("to-kafka", "morpheus.stages.output.write_to_kafka_stage.WriteToKafkaStage", modes=ALL)
+add_command("to-rest", "morpheus.stages.output.write_to_rest_stage.WriteToRestStage", modes=ALL)
+add_command("to-rest-server", "morpheus.stages.output.rest_server_sink_stage.RestServerSinkStage", modes=ALL)
 add_command("train-ae", "morpheus.stages.preprocess.train_ae_stage.TrainAEStage", modes=AE_ONLY)
 add_command("trigger", "morpheus.stages.general.trigger_stage.TriggerStage", modes=ALL)
 add_command("validate", "morpheus.stages.postprocess.validation_stage.ValidationStage", modes=ALL)
