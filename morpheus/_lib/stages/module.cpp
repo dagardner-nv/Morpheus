@@ -60,7 +60,7 @@ PYBIND11_MODULE(stages, _module)
     _module.doc() = R"pbdoc(
         -----------------------
         .. currentmodule:: morpheus.stages
-        .. autosummary::
+        .. autodoc2-summary::
            :toctree: _generate
 
         )pbdoc";

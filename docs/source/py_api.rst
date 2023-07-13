@@ -16,9 +16,6 @@
 
 Python API
 ==========
-.. autosummary::
-    :toctree: _modules
-    :template: custom-module-template.rst
-    :recursive:
+.. autodoc2-summary::
 
     morpheus

@@ -23,5 +23,9 @@ dependencies:
   - ipython
   - myst-parser=0.17.2
   - nbsphinx
+  - pip
   - sphinx
   - sphinx_rtd_theme
+  - pip:
+    # sphinx-autodoc2 in conda-forge requires python-3.11
+    - sphinx-autodoc2

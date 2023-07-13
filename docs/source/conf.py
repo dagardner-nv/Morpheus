@@ -87,6 +87,7 @@ version = f"{version_obj.major:02d}.{version_obj.minor:02d}"
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    "autodoc2",
     'breathe',
     'exhale',
     'IPython.sphinxext.ipython_console_highlighting',
@@ -94,9 +95,6 @@ extensions = [
     'myst_parser',
     'nbsphinx',
     'numpydoc',
-    'sphinx.ext.autodoc',
-    'sphinx.ext.autosummary',
-    'sphinx.ext.doctest',
     'sphinx.ext.graphviz',
     'sphinx.ext.intersphinx',
     'sphinx.ext.linkcode',
@@ -141,40 +139,25 @@ exhale_args = {
     ''')
 }
 
-# Include Python objects as they appear in source files
-# Default: alphabetically ('alphabetical')
-# autodoc_member_order = 'groupwise'
-# Default flags used by autodoc directives
-# autodoc_default_options = {
-#     'members': True,
-#     'show-inheritance': True,
-# }
-
-autosummary_imported_members = False
-autosummary_generate = True  # Generate autodoc stubs with summaries from code
-autoclass_content = "class"  # Dont show __init__
+# autosummary_imported_members = False
+# autosummary_generate = True  # Generate autodoc stubs with summaries from code
+# autoclass_content = "class"  # Dont show __init__
 html_show_sourcelink = False  # Remove 'view source code' from top of page (for html, not python)
-autodoc_inherit_docstrings = True  # If no docstring, inherit from base class
+# autodoc_inherit_docstrings = True  # If no docstring, inherit from base class
 set_type_checking_flag = True  # Enable 'expensive' imports for sphinx_autodoc_typehints
 nbsphinx_allow_errors = True  # Continue through Jupyter errors
-autodoc_typehints = "description"  # Sphinx-native method. Not as good as sphinx_autodoc_typehints
-autodoc_typehints_description_target = "documented"  # Dont double up on type hints
+# autodoc_typehints = "description"  # Sphinx-native method. Not as good as sphinx_autodoc_typehints
+# autodoc_typehints_description_target = "documented"  # Dont double up on type hints
 add_module_names = False  # Remove namespaces from class/method signatures
 myst_heading_anchors = 4  # Generate links for markdown headers
-autodoc_mock_imports = [
-    "cudf",  # Avoid loading GPU libraries during the documentation build
-    "cupy",  # Avoid loading GPU libraries during the documentation build
-    "merlin",
-    "morpheus.cli.commands",  # Dont document the CLI in Sphinx
-    "morpheus.utils.nvt.mutate.annotate",
-    "nvtabular",
-    "pandas",  # Avoid documenting pandas for the purposes of the dfencoder.dataframe
-    "tensorrt",
-    "torch",
-    "tqdm",
-]
+
+# autodoc2 requires this to be relative to current directory
+autodoc2_packages = ['../../morpheus']
+autodoc2_skip_module_regexes = ['morpheus\._lib\..*']
+autodoc2_render_plugin = "myst"
 
 suppress_warnings = [
+    "autodoc2.*",
     "myst.header"  # Allow header increases from h2 to h4 (skipping h3)
 ]
 

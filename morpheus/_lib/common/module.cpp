@@ -48,7 +48,7 @@ PYBIND11_MODULE(common, _module)
     _module.doc() = R"pbdoc(
         -----------------------
         .. currentmodule:: morpheus.common
-        .. autosummary::
+        .. autodoc2-summary::
            :toctree: _generate
         )pbdoc";
 

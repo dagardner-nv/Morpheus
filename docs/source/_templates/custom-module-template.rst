@@ -11,7 +11,7 @@
    {% if attributes %}
    .. rubric:: {{ _('Module Attributes') }}
 
-   .. autosummary::
+   .. autodoc2-summary::
       {# :toctree: #}
    {% for item in attributes %}
       {{ item }}
@@ -23,7 +23,7 @@
    {% if functions %}
    .. rubric:: {{ _('Functions') }}
 
-   .. autosummary::
+   .. autodoc2-summary::
       {# :toctree: #}
    {% for item in functions %}
       {{ item }}
@@ -35,7 +35,7 @@
    {% if classes %}
    .. rubric:: {{ _('Classes') }}
 
-   .. autosummary::
+   .. autodoc2-summary::
       :toctree:
       :template: custom-class-template.rst
    {% for item in classes %}
@@ -48,7 +48,7 @@
    {% if exceptions %}
    .. rubric:: {{ _('Exceptions') }}
 
-   .. autosummary::
+   .. autodoc2-summary::
       {# :toctree: #}
    {% for item in exceptions %}
       {{ item }}
@@ -60,12 +60,12 @@
 {% if modules %}
 .. rubric:: Modules
 
-.. autosummary::
+.. autodoc2-summary::
    :toctree:
    :template: custom-module-template.rst
    :recursive:
 {% for item in modules %}
-   {# Uncomment the following if toctree titles work with Autosummary #}
+   {# Uncomment the following if toctree titles work with autodoc2-summary #}
    {# {{ item.replace(fullname + ".", "") }} <{{ item }}> #}
    {{ item }}
 {%- endfor %}
