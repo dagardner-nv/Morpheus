@@ -522,4 +522,4 @@ def _build_source(self, builder: mrc.Builder) -> StreamPair:
         self.connect()
         node = builder.make_source(self.unique_name, self.source_generator)
     return node, MessageMeta
-``
+``````
