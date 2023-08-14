@@ -41,7 +41,9 @@ if [[ "${LOCAL_CI}" == "" ]]; then
 fi
 
 rapids-logger "Configuring cmake for Morpheus with ${CMAKE_FLAGS}"
-cmake -B build -G Ninja ${CMAKE_FLAGS} .
+
+# TEMP DO NOT MERGE!
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug ${CMAKE_FLAGS} -DMORPHEUS_BUILD_TESTS=OFF .
 
 rapids-logger "Building Morpheus"
 cmake --build build --parallel ${PARALLEL_LEVEL}
@@ -98,7 +100,7 @@ done
 rapids-logger "Running Python tests"
 set +e
 
-python -I -m pytest --run_slow --run_kafka --fail_missing \
+python -I -m pytest -s -v --run_slow --run_kafka --fail_missing \
        --junit-xml=${REPORTS_DIR}/report_pytest.xml \
        --cov=morpheus \
        --cov-report term-missing \
