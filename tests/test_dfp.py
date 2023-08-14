@@ -45,12 +45,11 @@ from utils import calc_error_val
 
 # End-to-end test intended to imitate the DFP validation test
 
-
-@pytest.mark.use_python
-def test_dfp_a(config):
-    print("******** test_dfp_a", flush=True)
-    gc.collect()
-    print("-------- test_dfp_a", flush=True)
+# @pytest.mark.use_python
+# def test_dfp_a(config):
+#     print("******** test_dfp_a", flush=True)
+#     gc.collect()
+#     print("-------- test_dfp_a", flush=True)
 
 
 @pytest.mark.slow
