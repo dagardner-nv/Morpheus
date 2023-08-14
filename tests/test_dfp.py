@@ -57,6 +57,9 @@ from utils import calc_error_val
 @mock.patch('morpheus.stages.preprocess.train_ae_stage.AutoEncoder')
 def test_dfp_roleg(mock_ae, config, tmp_path):
     print("******** test_dfp_roleg", flush=True)
+    print("******** test_dfp_a", flush=True)
+    gc.collect()
+    print("-------- test_dfp_a", flush=True)
     tensor_data = np.loadtxt(os.path.join(TEST_DIRS.tests_data_dir, 'dfp_roleg_tensor.csv'), delimiter=',')
     anomaly_score = np.loadtxt(os.path.join(TEST_DIRS.tests_data_dir, 'dfp_roleg_anomaly_score.csv'), delimiter=',')
     exp_results = pd.read_csv(os.path.join(TEST_DIRS.tests_data_dir, 'dfp_roleg_exp_results.csv'))
