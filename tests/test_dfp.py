@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import gc
 import os
 from unittest import mock
 
@@ -43,6 +44,13 @@ from utils import TEST_DIRS
 from utils import calc_error_val
 
 # End-to-end test intended to imitate the DFP validation test
+
+
+@pytest.mark.use_python
+def test_dfp_a(config):
+    print("******** test_dfp_a", flush=True)
+    gc.collect()
+    print("-------- test_dfp_a", flush=True)
 
 
 @pytest.mark.slow
