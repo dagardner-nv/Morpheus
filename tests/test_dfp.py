@@ -47,8 +47,6 @@ from utils import calc_error_val
 
 @pytest.mark.slow
 @pytest.mark.use_python
-@pytest.mark.reload_modules([preprocess_ae_stage, train_ae_stage])
-@pytest.mark.usefixtures("reload_modules")
 @mock.patch('morpheus.stages.preprocess.train_ae_stage.AutoEncoder')
 def test_dfp_roleg(mock_ae, config, tmp_path):
     tensor_data = np.loadtxt(os.path.join(TEST_DIRS.tests_data_dir, 'dfp_roleg_tensor.csv'), delimiter=',')
@@ -130,8 +128,6 @@ def test_dfp_roleg(mock_ae, config, tmp_path):
 
 @pytest.mark.slow
 @pytest.mark.use_python
-@pytest.mark.reload_modules([preprocess_ae_stage, train_ae_stage])
-@pytest.mark.usefixtures("reload_modules")
 @mock.patch('morpheus.stages.preprocess.train_ae_stage.AutoEncoder')
 def test_dfp_user123(mock_ae, config, tmp_path):
     tensor_data = np.loadtxt(os.path.join(TEST_DIRS.tests_data_dir, 'dfp_user123_tensor.csv'), delimiter=',')
@@ -211,8 +207,6 @@ def test_dfp_user123(mock_ae, config, tmp_path):
 
 @pytest.mark.slow
 @pytest.mark.use_python
-@pytest.mark.reload_modules([preprocess_ae_stage, train_ae_stage])
-@pytest.mark.usefixtures("reload_modules")
 @mock.patch('morpheus.stages.preprocess.train_ae_stage.AutoEncoder')
 def test_dfp_user123_multi_segment(mock_ae, config, tmp_path):
     tensor_data = np.loadtxt(os.path.join(TEST_DIRS.tests_data_dir, 'dfp_user123_tensor.csv'), delimiter=',')
