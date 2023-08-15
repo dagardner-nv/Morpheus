@@ -25,12 +25,15 @@
 #include <pybind11/pybind11.h>
 
 #include <array>
+#include <memory>
 #include <utility>
 
 namespace morpheus {
 /****** Component public implementations *******************/
 /****** PyDataTable****************************************/
-PyDataTable::PyDataTable(pybind11::object&& py_table) : m_py_table(std::move(py_table)) {}
+PyDataTable::PyDataTable(pybind11::object&& py_table) :
+  m_py_table{std::make_unique<pybind11::object>(std::move(py_table))}
+{}
 
 PyDataTable::~PyDataTable()
 {
@@ -39,7 +42,7 @@ PyDataTable::~PyDataTable()
         pybind11::gil_scoped_acquire gil;
 
         // Clear out the python object
-        m_py_table = pybind11::object();
+        m_py_table.reset();
     }
 }
 
@@ -47,19 +50,19 @@ cudf::size_type PyDataTable::count() const
 {
     pybind11::gil_scoped_acquire gil;
 
-    return m_py_table.attr("shape").attr("__getitem__")(0).cast<cudf::size_type>();
+    return m_py_table->attr("shape").attr("__getitem__")(0).cast<cudf::size_type>();
 }
 
 const pybind11::object& PyDataTable::get_py_object() const
 {
-    return m_py_table;
+    return *m_py_table;
 }
 
 TableInfoData PyDataTable::get_table_data() const
 {
     pybind11::gil_scoped_acquire gil;
 
-    auto info = CudfHelper::table_info_data_from_table(m_py_table);
+    auto info = CudfHelper::table_info_data_from_table(*m_py_table);
 
     return info;
 }
