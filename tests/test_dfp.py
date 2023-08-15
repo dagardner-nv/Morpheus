@@ -117,7 +117,9 @@ def test_dfp_roleg(mock_ae, config, tmp_path):
     pipe.add_stage(SerializeStage(config, include=[]))
     pipe.add_stage(WriteToFileStage(config, filename=out_file, overwrite=False))
 
+    print("Running pipeline", flush=True)
     pipe.run()
+    print("Done", flush=True)
 
     mock_ae.fit.assert_called_once()
     mock_ae.build_input_tensor.assert_called_once()
