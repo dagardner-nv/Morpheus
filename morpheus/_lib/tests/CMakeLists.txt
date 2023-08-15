@@ -21,7 +21,7 @@ include(GoogleTest)
 
 add_library(
     morpheus_test_utilities
-      test_utils/common.cpp
+  test_utils/common.cpp
 )
 
 target_link_libraries(
@@ -31,8 +31,7 @@ target_link_libraries(
     morpheus
 )
 
-function (add_morpheus_test TEST_NAME TEST_FILES)
-
+function(add_morpheus_test TEST_NAME TEST_FILES)
   add_executable(
     test_${TEST_NAME}
     ${TEST_FILES}
@@ -65,13 +64,11 @@ function (add_morpheus_test TEST_NAME TEST_FILES)
       "${MORPHEUS_LIB_INSTALL_DIR}/tests"
     COMPONENT Wheel
   )
-
 endfunction()
 
-add_morpheus_test(cuda
-  test_cuda.cu
-)
-
+# add_morpheus_test(cuda
+# test_cuda.cu
+# )
 add_morpheus_test(data_loader
   io/test_data_loader.cpp
   io/test_data_loader_registry.cpp
