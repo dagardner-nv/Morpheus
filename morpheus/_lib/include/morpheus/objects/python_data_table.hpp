@@ -23,8 +23,6 @@
 #include <cudf/types.hpp>      // for size_type
 #include <pybind11/pytypes.h>  // for object
 
-#include <memory>  // for unique_ptr
-
 namespace morpheus {
 /****** Component public implementations *******************/
 /****** PyDataTable****************************************/
@@ -65,7 +63,7 @@ struct PyDataTable : public IDataTable
   private:
     TableInfoData get_table_data() const override;
 
-    std::unique_ptr<pybind11::object> m_py_table;
+    pybind11::object m_py_table;
 };
 /** @} */  // end of group
 }  // namespace morpheus
