@@ -28,6 +28,7 @@
 #include <utility>
 
 namespace morpheus {
+
 /****** Component public implementations *******************/
 /****** PyDataTable****************************************/
 PyDataTable::PyDataTable(pybind11::object&& py_table) : m_py_table(std::move(py_table)) {}
@@ -36,7 +37,11 @@ PyDataTable::~PyDataTable()
 {
     if (m_py_table)
     {
+        using namespace pybind11::literals;
         pybind11::gil_scoped_acquire gil;
+        auto type_fn = pybind11::module_::import("builtins").attr("type");
+
+        pybind11::print("~PyDataTable(): m_py_table=", type_fn(m_py_table), "flush"_a = true);
 
         // Clear out the python object
         m_py_table = pybind11::object();
