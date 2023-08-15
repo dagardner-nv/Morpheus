@@ -79,7 +79,6 @@ def test_deserialize_multi_segment_pipe(config: Config, dataset: DatasetManager,
     """
     End to end test across mulitiple segments
     """
-    print("************ test_deserialize_multi_segment_pipe ************", flush=True)
     filter_probs_df = dataset["filter_probs.csv"]
     if dup_index:
         filter_probs_df = dataset.replace_index(filter_probs_df, {8: 7})
@@ -93,5 +92,3 @@ def test_deserialize_multi_segment_pipe(config: Config, dataset: DatasetManager,
     pipe.run()
 
     assert_results(comp_stage.get_results())
-
-    print("-------------- test_deserialize_multi_segment_pipe ************", flush=True)
