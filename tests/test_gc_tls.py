@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import threading
 import typing
 
 import cupy as cp
@@ -45,6 +46,7 @@ class FftStage(SinglePortStage):
         return (typing.Any, )
 
     def on_next(self, x: typing.Any):
+        print(f"FftStage on_next {threading.get_native_id()}", flush=True)
         cp.fft.fft(cp.zeros(10))
         return x
 

@@ -20,6 +20,7 @@
 #include "morpheus/utilities/cudf_util.hpp"
 
 #include <cudf/types.hpp>
+#include <glog/logging.h>
 #include <pybind11/cast.h>  // for object::cast
 #include <pybind11/gil.h>
 #include <pybind11/pybind11.h>
@@ -30,12 +31,16 @@
 namespace morpheus {
 /****** Component public implementations *******************/
 /****** PyDataTable****************************************/
-PyDataTable::PyDataTable(pybind11::object&& py_table) : m_py_table(std::move(py_table)) {}
+PyDataTable::PyDataTable(pybind11::object&& py_table) : m_py_table(std::move(py_table))
+{
+    LOG(INFO) << "PyDataTable::PyDataTable()";
+}
 
 PyDataTable::~PyDataTable()
 {
     if (m_py_table)
     {
+        LOG(INFO) << "PyDataTable::~PyDataTable()";
         pybind11::gil_scoped_acquire gil;
 
         // Clear out the python object
