@@ -50,3 +50,20 @@ jobs:
       test_container: nvcr.io/ea-nvidia-morpheus/morpheus:morpheus-ci-test-230315
     secrets:
       NGC_API_KEY: ${{ secrets.NGC_API_KEY }}
+      export WORKSPACE_TMP="$(pwd)/ws_tmp"
+mkdir -p ${WORKSPACE_TMP}
+git clone ${GIT_URL} Morpheus
+cd Morpheus/
+git checkout ${GIT_BRANCH}
+git pull
+
+export MORPHEUS_ROOT=$(pwd)
+export WORKSPACE=${MORPHEUS_ROOT}
+export LOCAL_CI=1
+unset CMAKE_CUDA_COMPILER_LAUNCHER
+unset CMAKE_CXX_COMPILER_LAUNCHER
+unset CMAKE_C_COMPILER_LAUNCHER
+
+if [[ "${STAGE}" != "bash" ]]; then
+    ${MORPHEUS_ROOT}/ci/scripts/github/${STAGE}.sh
+fi
