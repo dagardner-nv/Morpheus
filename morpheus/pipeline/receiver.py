@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import logging
+import os
 import typing
 
 import mrc
@@ -130,6 +131,14 @@ class Receiver():
                     raise RuntimeError((f"Cannot determine single type for senders of input port for {self._parent}. "
                                         "Use a merge stage to handle different types of inputs."))
 
+                call_count = 0
+                if os.path.exists("/tmp/get_input_type"):
+                    with open("/tmp/link_type", "r", encoding="utf-8") as f:
+                        call_count = int(f.read())
+
+                with open("/tmp/get_input_type", "w", encoding="utf-8") as f:
+                    f.write(str(call_count + 1))
+
                 self._input_type = great_ancestor
 
         return self._input_type
@@ -147,6 +156,14 @@ class Receiver():
 
         if (self._is_type_linked):
             return
+
+        call_count = 0
+        if os.path.exists("/tmp/link_type"):
+            with open("/tmp/link_type", "r", encoding="utf-8") as f:
+                call_count = int(f.read())
+
+        with open("/tmp/link_type", "w", encoding="utf-8") as f:
+            f.write(str(call_count + 1))
 
         # Check that the types still work
         great_ancestor = greatest_ancestor(*[x.out_type for x in self._input_senders if x.is_complete])
