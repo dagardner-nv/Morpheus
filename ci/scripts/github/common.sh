@@ -98,7 +98,8 @@ function update_conda_env() {
     rapids-logger "Checking for updates to conda env"
 
     # Update the packages
-    rapids-mamba-retry env update -n morpheus --prune -q --file ${ENV_YAML}
+    conda env remove -n morpheus
+    rapids-mamba-retry env create -n morpheus --prune -q --file ${ENV_YAML}
 
     # Finally, reactivate
     conda activate morpheus
