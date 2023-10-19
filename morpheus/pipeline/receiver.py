@@ -16,7 +16,6 @@ import logging
 import typing
 
 import mrc
-import typing_utils
 
 import morpheus.pipeline as _pipeline
 from morpheus.utils.type_utils import greatest_ancestor
@@ -26,25 +25,25 @@ logger = logging.getLogger(__name__)
 
 class Receiver():
     """
-    The `Receiver` object represents a downstream port on a `StreamWrapper` object that gets messages from a `Sender`.
+    The `Receiver` object represents a downstream port on a `StageBase` object that gets messages from a `Sender`.
 
     Parameters
         ----------
-        parent : `morpheus.pipeline.pipeline.StreamWrapper`
-            Parent `StreamWrapper` object.
+        parent : `morpheus.pipeline.pipeline.StageBase`
+            Parent `StageBase` object.
         port_number : int
             Receiver port number.
     """
 
-    def __init__(self, parent: "_pipeline.StreamWrapper", port_number: int):
+    def __init__(self, parent: "_pipeline.StageBase", port_number: int):
 
         self._parent = parent
         self.port_number = port_number
 
-        self._is_type_linked = False
+        self._is_schema_linked = False
         self._is_node_linked = False
 
-        self._input_type: type = None
+        self._input_schema: _pipeline.PortSchema = None
         self._input_node: mrc.SegmentObject = None
 
         self._input_senders: typing.List[_pipeline.Sender] = []
@@ -70,8 +69,8 @@ class Receiver():
         return any(x.is_complete for x in self._input_senders)
 
     @property
-    def in_type(self):
-        return self._input_type
+    def input_schema(self) -> _pipeline.PortSchema:
+        return self._input_schema
 
     def get_input_node(self, builder: mrc.Builder) -> mrc.SegmentObject:
         """
@@ -87,8 +86,8 @@ class Receiver():
                 # In this case, our input stream/type is determined from the sole Sender
                 sender = self._input_senders[0]
 
-                if sender.out_node is not None:
-                    self._input_node = sender.out_node
+                if sender.output_node is not None:
+                    self._input_node = sender.output_node
                     self._is_node_linked = True
             else:
                 # We have multiple senders. Create a dummy stream to connect all senders
@@ -98,43 +97,52 @@ class Receiver():
                 if (self.is_complete):
                     # Connect all streams now
                     for input_sender in self._input_senders:
-                        builder.make_edge(input_sender.out_node, self._input_node)
+                        builder.make_edge(input_sender.output_node, self._input_node)
 
                     self._is_node_linked = True
 
         return self._input_node
 
-    def get_input_type(self) -> type:
-        """
-        Returns the the parent node's output type.
-        """
+    def _compute_input_schema(self):
+        great_ancestor = greatest_ancestor(*[x.output_schema.get_type() for x in self._input_senders if x.is_complete])
 
+        if (great_ancestor is None):
+            raise RuntimeError((f"Cannot determine single type for senders of input port for {self._parent}. "
+                                "Use a merge stage to handle different types of inputs."))
+
+        self._input_schema = _pipeline.PortSchema(port_type=great_ancestor)
+        self._input_schema._complete()
+        self._is_schema_linked = True
+
+    def get_input_schema(self) -> _pipeline.PortSchema:
         assert self.is_partial, "Must be partially complete to get the input type!"
 
         # Build the input from the senders
-        if (self._input_type is None):
+        if (self._input_schema is None):
             # First check if we only have 1 input sender
             if (len(self._input_senders) == 1):
                 # In this case, our input stream/type is determined from the sole Sender
                 sender = self._input_senders[0]
-                self._input_type = sender.out_type
-                self._is_type_linked = True
-                if sender.out_node is not None:
-                    self._input_node = sender.out_node
+                self._input_schema = sender.output_schema
+                self._is_schema_linked = True
+                if sender.output_node is not None:
+                    self._input_node = sender.output_node
                     self._is_node_linked = True
             else:
                 # Now determine the output type from what we have
-                great_ancestor = greatest_ancestor(*[x.out_type for x in self._input_senders if x.is_complete])
+                self._compute_input_schema()
 
-                if (great_ancestor is None):
-                    raise RuntimeError((f"Cannot determine single type for senders of input port for {self._parent}. "
-                                        "Use a merge stage to handle different types of inputs."))
+        return self._input_schema
 
-                self._input_type = great_ancestor
+    @property
+    def input_type(self) -> type:
+        """
+        Returns the the upstream node's output type, and in case of multiple upstreams this will return the common
+        ancestor type.
+        """
+        return self.get_input_schema().get_type()
 
-        return self._input_type
-
-    def link_type(self):
+    def link_schema(self):
         """
         The type linking phase determines the final type of the `Receiver`.
 
@@ -145,16 +153,10 @@ class Receiver():
 
         assert self.is_complete, "Must be complete before linking!"
 
-        if (self._is_type_linked):
+        if (self._is_schema_linked):
             return
 
-        # Check that the types still work
-        great_ancestor = greatest_ancestor(*[x.out_type for x in self._input_senders if x.is_complete])
-
-        if (not typing_utils.issubtype(great_ancestor, self._input_type)):
-            raise RuntimeError(f"Input port type {great_ancestor} does not match {self._input_type} for {self._parent}")
-
-        self._is_type_linked = True
+        self._compute_input_schema()
 
     def link_node(self, builder: mrc.Builder):
         """
@@ -167,7 +169,7 @@ class Receiver():
             return
 
         for sender in self._input_senders:
-            assert sender.out_node is not self._input_node
-            builder.make_edge(sender.out_node, self._input_node)
+            assert sender.output_node is not self._input_node
+            builder.make_edge(sender.output_node, self._input_node)
 
         self._is_node_linked = True

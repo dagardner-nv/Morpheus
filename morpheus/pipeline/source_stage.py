@@ -24,7 +24,7 @@ from morpheus.config import Config
 logger = logging.getLogger(__name__)
 
 
-class SourceStage(_pipeline.StreamWrapper):
+class SourceStage(_pipeline.StageBase):
     """
     The SourceStage is mandatory for the Morpheus pipeline to run. This stage represents the start of the pipeline. All
     `SourceStage` object take no input but generate output.
@@ -85,7 +85,7 @@ class SourceStage(_pipeline.StreamWrapper):
         assert len(sources) == len(self.output_ports), "Number of sources should match number of output ports"
 
         for (i, source) in enumerate(sources):
-            self._output_ports[i]._out_node = source
+            self._output_ports[i]._output_node = source
             self._sources.append(source)
 
         return sources

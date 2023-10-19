@@ -34,12 +34,12 @@ from morpheus.pipeline.receiver import Receiver
 from morpheus.pipeline.sender import Sender
 from morpheus.pipeline.source_stage import SourceStage
 from morpheus.pipeline.stage import Stage
-from morpheus.pipeline.stream_wrapper import StreamWrapper
+from morpheus.pipeline.stage_base import StageBase
 from morpheus.utils.type_utils import pretty_print_type_name
 
 logger = logging.getLogger(__name__)
 
-StageT = typing.TypeVar("StageT", bound=StreamWrapper)
+StageT = typing.TypeVar("StageT", bound=StageBase)
 
 
 class Pipeline():
@@ -131,15 +131,16 @@ class Pipeline():
         return stage
 
     def add_edge(self,
-                 start: typing.Union[StreamWrapper, Sender],
+                 start: typing.Union[StageBase, Sender],
                  end: typing.Union[Stage, Receiver],
                  segment_id: str = "main"):
         """
         Create an edge between two stages and add it to a segment in the pipeline.
+        When `start` and `end` are stages, they must have exactly one output and input port respectively.
 
         Parameters
         ----------
-        start : typing.Union[StreamWrapper, Sender]
+        start : typing.Union[StageBase, Sender]
             The start of the edge or parent stage.
 
         end : typing.Union[Stage, Receiver]
@@ -150,13 +151,25 @@ class Pipeline():
         """
         self._assert_not_built()
 
-        if (isinstance(start, StreamWrapper)):
+        if (isinstance(start, StageBase)):
+            assert len(start.output_ports) > 0, \
+                "Cannot call `add_edge` with a stage with no output ports as the `start` parameter"
+            assert len(start.output_ports) == 1, \
+                ("Cannot call `add_edge` with a stage with with multiple output ports as the `start` parameter, "
+                 "instead `add_edge` must be called for each output port individually.")
             start_port = start.output_ports[0]
+
         elif (isinstance(start, Sender)):
             start_port = start
 
         if (isinstance(end, Stage)):
+            assert len(end.input_ports) > 0, \
+                "Cannot call `add_edge` with a stage with no input ports as the `end` parameter"
+            assert len(end.input_ports) == 1, \
+                ("Cannot call `add_edge` with a stage with with multiple input ports as the `end` parameter, "
+                 "instead `add_edge` must be called for each input port individually.")
             end_port = end.input_ports[0]
+
         elif (isinstance(end, Receiver)):
             end_port = end
 
@@ -255,8 +268,8 @@ class Pipeline():
             # Finally, execute the link phase (only necessary for circular pipelines)
             # for s in source_and_stages:
             for stage in segment_graph.nodes():
-                for port in typing.cast(StreamWrapper, stage).input_ports:
-                    port.link_type()
+                for port in typing.cast(StageBase, stage).input_ports:
+                    port.link_schema()
 
             logger.info("====Pre-Building Segment Complete!====")
 
@@ -265,7 +278,7 @@ class Pipeline():
     def build(self):
         """
         This function sequentially activates all the Morpheus pipeline stages passed by the users to execute a
-        pipeline. For the `Source` and all added `Stage` objects, `StreamWrapper.build` will be called sequentially to
+        pipeline. For the `Source` and all added `Stage` objects, `StageBase.build` will be called sequentially to
         construct the pipeline.
 
         Once the pipeline has been constructed, this will start the pipeline by calling `Source.start` on the source
@@ -311,7 +324,7 @@ class Pipeline():
 
             # Finally, execute the link phase (only necessary for circular pipelines)
             for stage in segment_graph.nodes():
-                for port in typing.cast(StreamWrapper, stage).input_ports:
+                for port in typing.cast(StageBase, stage).input_ports:
                     port.link_node(builder=builder)
 
             asyncio.run(self._async_start(segment_graph.nodes()))
@@ -454,7 +467,7 @@ class Pipeline():
         start_def_port = ":e" if is_lr else ":s"
         end_def_port = ":w" if is_lr else ":n"
 
-        def has_ports(node: StreamWrapper, is_input):
+        def has_ports(node: StageBase, is_input):
             if (is_input):
                 return len(node.input_ports) > 0
 
@@ -465,7 +478,7 @@ class Pipeline():
             gv_subgraphs[segment_id] = graphviz.Digraph(f"cluster_{segment_id}")
             gv_subgraph = gv_subgraphs[segment_id]
             gv_subgraph.attr(label=segment_id)
-            for name, attrs in typing.cast(typing.Mapping[StreamWrapper, dict],
+            for name, attrs in typing.cast(typing.Mapping[StageBase, dict],
                                            self._segment_graphs[segment_id].nodes).items():
                 node_attrs = attrs.copy()
 
@@ -504,7 +517,7 @@ class Pipeline():
         # Build up edges
         for segment_id in self._segments:
             gv_subgraph = gv_subgraphs[segment_id]
-            for e, attrs in typing.cast(typing.Mapping[typing.Tuple[StreamWrapper, StreamWrapper], dict],
+            for e, attrs in typing.cast(typing.Mapping[typing.Tuple[StageBase, StageBase], dict],
                                         self._segment_graphs[segment_id].edges()).items():  # noqa: E501
 
                 edge_attrs = {}
@@ -535,19 +548,19 @@ class Pipeline():
 
                 # Check for situation #1
                 if (len(in_port._input_senders) == 1 and len(out_port._output_receivers) == 1
-                        and (in_port.in_type == out_port.out_type)):
+                        and (in_port.input_schema == out_port.output_schema)):
 
-                    edge_attrs["label"] = pretty_print_type_name(in_port.in_type)
+                    edge_attrs["label"] = pretty_print_type_name(in_port.input_type)
                 else:
                     rec_idx = out_port._output_receivers.index(in_port)
                     sen_idx = in_port._input_senders.index(out_port)
 
                     # Add type labels if available
-                    if (rec_idx == 0 and out_port.out_type is not None):
-                        edge_attrs["taillabel"] = pretty_print_type_name(out_port.out_type)
+                    if (rec_idx == 0 and out_port.output_schema is not None):
+                        edge_attrs["taillabel"] = pretty_print_type_name(out_port.output_type)
 
-                    if (sen_idx == 0 and in_port.in_type is not None):
-                        edge_attrs["headlabel"] = pretty_print_type_name(in_port.in_type)
+                    if (sen_idx == 0 and in_port.input_schema is not None):
+                        edge_attrs["headlabel"] = pretty_print_type_name(in_port.input_type)
 
                 gv_subgraph.edge(start_name, end_name, **edge_attrs)
 

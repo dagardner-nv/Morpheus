@@ -62,39 +62,15 @@ class SingleOutputSource(_pipeline.SourceStage):
         pass
 
     def _build_sources(self, builder: mrc.Builder) -> list[mrc.SegmentObject]:
+        assert len(self.output_ports) == 1, \
+            f"SingleOutputSource should have only one output port, {self} has {len(self.output_ports)}"
+
         return [self._build_source(builder)]
 
     @typing.final
     def _post_build(self, builder: mrc.Builder, out_ports_nodes: list[mrc.SegmentObject]) -> list[mrc.SegmentObject]:
-
         ret_val = self._post_build_single(builder, out_ports_nodes[0])
 
-        logger.info("Added source: %s\n  └─> %s", self, pretty_print_type_name(self.output_type()))
+        logger.info("Added source: %s\n  └─> %s", self, pretty_print_type_name(self.output_ports[0].output_type))
 
         return [ret_val]
-
-    def output_types(self, parent_output_types: list[type]) -> list[type]:
-        """
-        Return the output type for this stage.
-
-        Returns
-        -------
-        list
-            Output types.
-
-        """
-        assert len(parent_output_types) == 0, "Source stages should not have any parent stages."
-        return [self.output_type()]
-
-    @abstractmethod
-    def output_type(self) -> type:
-        """
-        Return the output type for this stage. Derived classes should override this method.
-
-        Returns
-        -------
-        type
-            Output type.
-
-        """
-        pass

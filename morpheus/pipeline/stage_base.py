@@ -38,7 +38,7 @@ def _save_init_vals(func: _DecoratorType) -> _DecoratorType:
     sig = inspect.signature(func, follow_wrapped=True)
 
     @functools.wraps(func)
-    def inner(self: "StreamWrapper", *args, **kwargs):
+    def inner(self: "StageBase", *args, **kwargs):
 
         # Actually call init first. This way any super classes strings will be overridden
         func(self, *args, **kwargs)
@@ -63,7 +63,7 @@ def _save_init_vals(func: _DecoratorType) -> _DecoratorType:
     return typing.cast(_DecoratorType, inner)
 
 
-class StreamWrapper(ABC, collections.abc.Hashable):
+class StageBase(ABC, collections.abc.Hashable):
     """
     This abstract class serves as the morpheus pipeline's base class. This class wraps a `mrc.SegmentObject`
     object and aids in hooking stages up together.
@@ -81,7 +81,7 @@ class StreamWrapper(ABC, collections.abc.Hashable):
         # Save the config
         self._config = config
 
-        self._id = StreamWrapper.__ID_COUNTER.get_and_inc()
+        self._id = StageBase.__ID_COUNTER.get_and_inc()
         self._pipeline: _pipeline.Pipeline = None
         self._init_str: str = ""  # Stores the initialization parameters used for creation. Needed for __repr__
 
@@ -228,13 +228,13 @@ class StreamWrapper(ABC, collections.abc.Hashable):
 
         return senders
 
-    def get_all_input_stages(self) -> list["StreamWrapper"]:
+    def get_all_input_stages(self) -> list["StageBase"]:
         """
         Get all input stages to this stage.
 
         Returns
         -------
-        list[`morpheus.pipeline.pipeline.StreamWrapper`]
+        list[`morpheus.pipeline.pipeline.StageBase`]
             All input stages.
         """
         return [x.parent for x in self.get_all_inputs()]
@@ -255,13 +255,13 @@ class StreamWrapper(ABC, collections.abc.Hashable):
 
         return receivers
 
-    def get_all_output_stages(self) -> list["StreamWrapper"]:
+    def get_all_output_stages(self) -> list["StageBase"]:
         """
         Get all output stages from this stage.
 
         Returns
         -------
-        list[`morpheus.pipeline.pipeline.StreamWrapper`]
+        list[`morpheus.pipeline.pipeline.StageBase`]
             All output stages.
         """
         return [x.parent for x in self.get_all_outputs()]
@@ -339,15 +339,18 @@ class StreamWrapper(ABC, collections.abc.Hashable):
     def _pre_build(self, do_propagate: bool = True):
         assert not self.is_built, "build called prior to _pre_build"
         assert not self.is_pre_built, "Can only pre-build stages once!"
-        in_types: list[type] = [x.get_input_type() for x in self.input_ports]
-        out_types: list[type] = self.output_types(in_types)
+        schema = _pipeline.StageSchema(self)
+        self._pre_compute_schema(schema)
+        self.compute_schema(schema)
 
-        assert len(out_types) == len(self.output_ports), \
-            (f"Prebuild expected `output_types()` to return {len(self.output_ports)} types (one for each output port), "
-             f"but got {len(out_types)}.")
+        assert len(schema.output_schemas) == len(self.output_ports), \
+            (f"Prebuild expected `schema.output_schemas` to be of length {len(self.output_ports)} "
+             f"(one for each output port), but got {len(schema.output_schemas)}.")
 
-        for (port_idx, out_type) in enumerate(out_types):
-            self.output_ports[port_idx]._out_type = out_type
+        schema._complete()
+
+        for (port_idx, port_schema) in enumerate(schema.output_schemas):
+            self.output_ports[port_idx].output_schema = port_schema
 
         self._is_pre_built = True
 
@@ -388,7 +391,7 @@ class StreamWrapper(ABC, collections.abc.Hashable):
 
         # Assign the output ports
         for port_idx, out_node in enumerate(out_ports_nodes):
-            self.output_ports[port_idx]._out_node = out_node
+            self.output_ports[port_idx]._output_node = out_node
 
         self._is_built = True
 
@@ -467,14 +470,28 @@ class StreamWrapper(ABC, collections.abc.Hashable):
         return self._needed_columns.copy()
 
     @abstractmethod
-    def output_types(self, parent_output_types: list[type]) -> list[type]:
+    def compute_schema(self, schema: _pipeline.StageSchema):
         """
-        Return the output types for this stage. Derived classes should override this method.
+        Compute the schema for this stage based on the incoming schema from upstream stages.
 
-        Returns
-        -------
-        list
-            Output types.
+        Incoming schema and type information from upstream stages is available via the `schema.input_schemas` and
+        `schema.input_types` properties.
 
+        Derived classes need to override this method, can set the output type(s) on `schema` by calling `set_type` for
+        all output ports. For example a simple pass-thru stage might perform the following:
+
+        ```
+        >>> for (port_idx, port_schema) in enumerate(schema.input_schemas):
+        >>>     schema.output_schemas[port_idx].set_type(port_schema.get_type())
+        ```
+
+        If the port types in `upstream_schema` are incompatible the stage should raise a `RuntimeError`.
+        """
+        pass
+
+    def _pre_compute_schema(self, schema: _pipeline.StageSchema):
+        """
+        Optional pre-flight method, allows base classes like `SinglePortStage` to perform pre-flight checks prior to
+        `compute_schema` being called.
         """
         pass

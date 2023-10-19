@@ -14,7 +14,6 @@
 
 import logging
 import warnings
-from abc import abstractmethod
 
 import mrc
 
@@ -23,7 +22,7 @@ import morpheus.pipeline as _pipeline
 logger = logging.getLogger(__name__)
 
 
-class Stage(_pipeline.StreamWrapper):
+class Stage(_pipeline.StageBase):
     """
     This class serves as the base for all pipeline stage implementations that are not source objects.
 
@@ -39,21 +38,6 @@ class Stage(_pipeline.StreamWrapper):
         return out_ports_nodes
 
     def _start(self):
-        pass
-
-    @abstractmethod
-    def output_types(self, parent_output_types: list[type]) -> list[type]:
-        """
-        Return the output types for this stage based on the incoming types of parent stages. Derived classes should
-        override this method, if the `parent_output_types` are incompatible then the stage should rase a
-        `RuntimeError` exception.
-
-        Returns
-        -------
-        list
-            Output types.
-
-        """
         pass
 
     async def start_async(self):
