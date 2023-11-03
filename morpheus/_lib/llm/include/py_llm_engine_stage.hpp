@@ -424,9 +424,12 @@ void CoroutineRunnable<InputT, OutputT>::run(mrc::runnable::Context& ctx)
     // TODO(MDD): Eventually we should get this from the context object. For now, just create it directly
     auto scheduler = std::make_shared<PythonAsyncioScheduler>(m_concurrency);
 
+    LOG(INFO) << "CoroutineRunnable::run() - run_until_complete";
     // Now use the scheduler to run the main task until it is complete
     scheduler->run_until_complete(this->main_task(*scheduler));
+    LOG(INFO) << "CoroutineRunnable::run() - run_until_complete - done";
 
+    LOG(INFO) << "CoroutineRunnable::run() - releasing edge connections";
     // Need to drop the output edges
     mrc::node::SourceProperties<InputT>::release_edge_connection();
     mrc::node::SinkProperties<OutputT>::release_edge_connection();
@@ -446,19 +449,25 @@ Task<void> CoroutineRunnable<InputT, OutputT>::main_task(mrc::coroutines::Schedu
 
     size_t i = 0;
 
+    LOG(INFO) << "CoroutineRunnable::main_task() - co_awaiting iterator";
     auto iter = co_await input_generator.begin();
 
     while (iter != input_generator.end())
     {
+        LOG(INFO) << "CoroutineRunnable::main_task() - loop iteration " << i;
         // Weird bug, cant directly move the value into the process_one call
         auto data = std::move(*iter);
 
+        LOG(INFO) << "CoroutineRunnable::main_task() - co_awaiting task_buffer.write(" << i << ")";
         // Wait for an available slot in the task buffer
         co_await task_buffer.write(i);
+        LOG(INFO) << "CoroutineRunnable::main_task() - co_awaiting task_buffer.write(" << i << ") - done";
 
         // Push the value into the coroutine. This may or may not block depending on how many outstanding tasks there
         // are
+        LOG(INFO) << "CoroutineRunnable::main_task() - scheduler.schedule - process_one()";
         scheduler.schedule(this->process_one(std::move(data), output_receiver, task_buffer));
+        LOG(INFO) << "CoroutineRunnable::main_task() - scheduler.schedule - process_one() - done";
 
         // Advance the iterator
         co_await ++iter;
