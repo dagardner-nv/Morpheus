@@ -86,6 +86,7 @@ class PythonAsyncioScheduler : public mrc::coroutines::Scheduler
 
     void resume(std::coroutine_handle<> coroutine) override
     {
+        LOG(INFO) << "PythonAsyncioScheduler::resume()";
         if (coroutine.done())
         {
             LOG(WARNING) << "PythonAsyncioScheduler::resume() > Attempted to resume a completed coroutine";
@@ -108,10 +109,12 @@ class PythonAsyncioScheduler : public mrc::coroutines::Scheduler
 
             handle.resume();
         }));
+        LOG(INFO) << "PythonAsyncioScheduler::resume() - done";
     }
 
     mrc::pymrc::PyHolder& init_loop()
     {
+        LOG(INFO) << "PythonAsyncioScheduler::init_loop()";
         CHECK_EQ(PyGILState_Check(), 1) << "Must have the GIL when calling PythonAsyncioScheduler::init_loop()";
 
         std::unique_lock lock(m_mutex);
@@ -143,6 +146,7 @@ class PythonAsyncioScheduler : public mrc::coroutines::Scheduler
 
         m_loop = std::move(loop);
 
+        LOG(INFO) << "PythonAsyncioScheduler::init_loop() - done";
         return m_loop;
     }
 
@@ -164,24 +168,30 @@ class PythonAsyncioScheduler : public mrc::coroutines::Scheduler
         // Now wait until all tasks have been processed
         loop.attr("run_until_complete")(mrc::pymrc::coro::BoostFibersMainPyAwaitable(
             this->get_task_container().garbage_collect_and_yield_until_empty()));
+
+        LOG(INFO) << "CoroutineRunnable::run() > run_until_complete() - done";
     }
 
   private:
     std::coroutine_handle<> schedule_operation(Operation* operation) override
     {
+        LOG(INFO) << "PythonAsyncioScheduler::schedule_operation()";
         this->resume(std::move(operation->m_awaiting_coroutine));
 
+        LOG(INFO) << "PythonAsyncioScheduler::schedule_operation() - done";
         return std::noop_coroutine();
     }
 
     mrc::pymrc::PyHolder& get_loop()
     {
+        LOG(INFO) << "PythonAsyncioScheduler::get_loop()";
         if (!m_loop)
         {
             throw std::runtime_error("Must call init_loop() before get_loop()");
         }
 
         // TODO(MDD): Check that we are on the same thread as the loop
+        LOG(INFO) << "PythonAsyncioScheduler::get_loop() - done";
         return m_loop;
     }
 
@@ -226,6 +236,7 @@ class BoostFutureAwaiter
 
         bool await_suspend(std::coroutine_handle<> continuation) noexcept
         {
+            LOG(INFO) << "Awaiter::await_suspend()";
             // Launch a new fiber that waits on the future and then resumes the coroutine
             boost::fibers::async(
                 boost::fibers::launch::post,
@@ -243,7 +254,10 @@ class BoostFutureAwaiter
 
         auto await_resume() noexcept
         {
-            return m_future.get();
+            LOG(INFO) << "Awaiter::Awaiter::await_resume()";
+            auto result = m_future.get();
+            LOG(INFO) << "Awaiter::Awaiter::await_resume() - done";
+            return result;
         }
 
       private:
@@ -272,6 +286,7 @@ class BoostFutureReader : public IReadable<T>
 
     Task<mrc::channel::Status> async_read(T& value) override
     {
+        LOG(INFO) << "BoostFutureReader::async_read()";
         co_return co_await m_awaiter(std::ref(value));
     }
 
@@ -297,6 +312,7 @@ class BoostFutureWriter : public IWritable<T>
 
     Task<mrc::channel::Status> async_write(T&& value) override
     {
+        LOG(INFO) << "BoostFutureWriter::async_write()";
         co_return co_await m_awaiter(std::move(value));
     }
 
@@ -402,6 +418,7 @@ class CoroutineRunnable : public CoroutineRunnableSink<InputT>,
 template <typename InputT, typename OutputT>
 void CoroutineRunnable<InputT, OutputT>::run(mrc::runnable::Context& ctx)
 {
+    LOG(INFO) << "CoroutineRunnable::run()";
     // auto& scheduler = ctx.scheduler();
 
     // TODO(MDD): Eventually we should get this from the context object. For now, just create it directly
@@ -413,11 +430,13 @@ void CoroutineRunnable<InputT, OutputT>::run(mrc::runnable::Context& ctx)
     // Need to drop the output edges
     mrc::node::SourceProperties<InputT>::release_edge_connection();
     mrc::node::SinkProperties<OutputT>::release_edge_connection();
+    LOG(INFO) << "CoroutineRunnable::run() - done";
 }
 
 template <typename InputT, typename OutputT>
 Task<void> CoroutineRunnable<InputT, OutputT>::main_task(mrc::coroutines::Scheduler& scheduler)
 {
+    LOG(INFO) << "CoroutineRunnable::main_task()";
     // Get the generator and receiver
     auto input_generator = CoroutineRunnableSink<InputT>::build_readable_generator(m_stop_source.get_token());
     auto output_receiver = CoroutineRunnableSource<OutputT>::build_writable_receiver();
@@ -451,6 +470,7 @@ Task<void> CoroutineRunnable<InputT, OutputT>::main_task(mrc::coroutines::Schedu
 
     // Now block until all tasks are complete
     co_await task_buffer.completed();
+    LOG(INFO) << "CoroutineRunnable::main_task() - done";
 }
 
 template <typename InputT, typename OutputT>
@@ -458,6 +478,7 @@ Task<void> CoroutineRunnable<InputT, OutputT>::process_one(InputT&& value,
                                                            std::shared_ptr<IWritable<OutputT>> writer,
                                                            task_buffer_t& task_buffer)
 {
+    LOG(INFO) << "CoroutineRunnable::process_one()";
     // Call the on_data function
     auto on_data_gen = this->on_data(std::move(value));
 
@@ -477,6 +498,7 @@ Task<void> CoroutineRunnable<InputT, OutputT>::process_one(InputT&& value,
     // Return the slot to the task buffer
     co_await task_buffer.read();
 
+    LOG(INFO) << "CoroutineRunnable::process_one() - done";
     co_return;
 }
 
@@ -488,14 +510,17 @@ void CoroutineRunnable<InputT, OutputT>::on_state_update(const state_t& state)
     case state_t::Stop:
         // Do nothing, we wait for the upstream channel to return closed
         // m_stop_source.request_stop();
+        LOG(INFO) << "CoroutineRunnable::on_state_update() > State: stop ";
         break;
 
     case state_t::Kill:
-
+        LOG(INFO) << "CoroutineRunnable::on_state_update() > State: kill";
         m_stop_source.request_stop();
+        LOG(INFO) << "CoroutineRunnable::on_state_update() > State: requested stop";
         break;
 
     default:
+        LOG(INFO) << "CoroutineRunnable::on_state_update() > State: " << static_cast<int>(state);
         break;
     }
 }
@@ -512,6 +537,7 @@ class MORPHEUS_EXPORT PyLLMEngineStage
                                                                         const std::string& name,
                                                                         std::shared_ptr<LLMEngine> engine)
     {
+        LOG(INFO) << "PyLLMEngineStage::init() > Creating new PyLLMEngineStage with name: " << name;
         auto stage = builder.construct_object<PyLLMEngineStage>(name, std::move(engine));
 
         return stage;
@@ -521,14 +547,20 @@ class MORPHEUS_EXPORT PyLLMEngineStage
     mrc::coroutines::AsyncGenerator<std::shared_ptr<ControlMessage>> on_data(
         std::shared_ptr<ControlMessage>&& data) override
     {
+        LOG(INFO) << "PyLLMEngineStage::on_data() -  co_awaiting m_engine->run()";
         auto result = co_await m_engine->run(std::move(data));
+        LOG(INFO) << "PyLLMEngineStage::on_data() -  co_awaiting m_engine->run() complete yielding results "
+                  << result.size();
 
         // Push the output messages
         for (auto&& out_message : result)
         {
+            LOG(INFO) << "\tPyLLMEngineStage::on_data() -  co_yielding output message";
             co_yield std::move(out_message);
+            LOG(INFO) << "\tPyLLMEngineStage::on_data() -  co_yielded";
         }
 
+        LOG(INFO) << "PyLLMEngineStage::on_data() - returning";
         co_return;
     }
 
