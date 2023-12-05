@@ -90,6 +90,8 @@ dependencies:
           - isort
           - pylint>=2.17.4,<2.18 # 2.17.4 contains a fix for toml support
           - yapf=0.40.1
+          - pip:
+              - rapids-dependency-file-generator==1.7
   docs:
     common:
       - output_types: [conda]
