@@ -115,7 +115,11 @@ dependencies:
           - dgl=1.0.2
           - dill=0.3.6
           - distributed>=2023.1.1
+          - faker=12.3.0
           - huggingface_hub=0.10.1 # work-around for https://github.com/UKPLab/sentence-transformers/issues/1762
+          - ipywidgets
+          - jupyter_core>=4.11.2,<5.0
+          - jupyterlab
           - langchain=0.0.190
           - newspaper3k=0.2
           - openai=0.28
