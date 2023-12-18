@@ -74,7 +74,7 @@ def _run_pipeline(config: Config,
     pipe.add_stage(
         TritonInferenceStage(config, model_name='test-model', server_url='test:0000', force_convert_inputs=True))
 
-    pipe.add_stage(AddScoresStage(config, labels=["embedding"]))
+    pipe.add_stage(AddScoresStage(config, labels=["embedding"], use_class_labels=False))
 
     pipe.add_stage(
         WriteToVectorDBStage(config,

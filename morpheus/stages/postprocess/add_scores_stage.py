@@ -52,9 +52,15 @@ class AddScoresStage(AddScoresStageBase):
                  *,
                  labels: typing.List[str] = None,
                  prefix: str = "",
-                 probs_type: TypeId = TypeId.FLOAT32):
+                 probs_type: TypeId = TypeId.FLOAT32,
+                 use_class_labels: bool = True):
         # Initialize the base with threshold=None
-        super().__init__(c, labels=labels, prefix=prefix, probs_type=probs_type, threshold=None)
+        super().__init__(c,
+                         labels=labels,
+                         prefix=prefix,
+                         probs_type=probs_type,
+                         threshold=None,
+                         use_class_labels=use_class_labels)
 
     @property
     def name(self) -> str:

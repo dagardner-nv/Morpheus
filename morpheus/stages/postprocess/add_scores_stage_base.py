@@ -55,15 +55,26 @@ class AddScoresStageBase(PassThruTypeMixin, SinglePortStage):
                  labels: typing.List[str] = None,
                  prefix: str = "",
                  probs_type: TypeId,
-                 threshold: typing.Optional[float]):
+                 threshold: typing.Optional[float],
+                 use_class_labels: bool = True):
         super().__init__(c)
 
         self._feature_length = c.feature_length
-        self._labels = labels if labels is not None and len(labels) > 0 else c.class_labels
         self._prefix = prefix
         self._threshold = threshold
 
-        self._class_labels = c.class_labels
+        if labels is not None and len(labels) > 0:
+            self._labels = labels
+        else:
+            if not use_class_labels:
+                raise ValueError("labels must be specified if use_class_labels is False")
+
+            self._labels = c.class_labels
+
+        if (use_class_labels):
+            self._class_labels = c.class_labels
+        else:
+            self._class_labels = self._labels
 
         # Build the Index to Label map.
         self._idx2label = {}
