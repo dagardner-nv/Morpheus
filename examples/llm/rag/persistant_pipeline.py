@@ -35,6 +35,7 @@ from morpheus.stages.input.kafka_source_stage import KafkaSourceStage
 from morpheus.stages.llm.llm_engine_stage import LLMEngineStage
 from morpheus.stages.output.write_to_kafka_stage import WriteToKafkaStage
 from morpheus.stages.output.write_to_vector_db_stage import WriteToVectorDBStage
+from morpheus.stages.postprocess.add_scores_stage import AddScoresStage
 from morpheus.stages.preprocess.deserialize_stage import DeserializeStage
 from morpheus.stages.preprocess.preprocess_nlp_stage import PreprocessNLPStage
 
@@ -179,6 +180,8 @@ def pipeline(num_threads, pipeline_batch_size, model_max_batch_size, embedding_s
                                             vdb_service=vdb_service.load_resource("RSS"),
                                             llm_service=llm_service)))
     pipe.add_edge(split.output_ports[0], retrieve_llm_engine)
+
+    pipe.add_stage(AddScoresStage(config, labels=["embedding"]))
 
     retrieve_results = pipe.add_stage(
         WriteToKafkaStage(config, bootstrap_servers="auto", output_topic="retrieve_output"))

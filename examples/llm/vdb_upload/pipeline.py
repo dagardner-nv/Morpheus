@@ -22,6 +22,7 @@ from morpheus.stages.general.trigger_stage import TriggerStage
 from morpheus.stages.inference.triton_inference_stage import TritonInferenceStage
 from morpheus.stages.input.rss_source_stage import RSSSourceStage
 from morpheus.stages.output.write_to_vector_db_stage import WriteToVectorDBStage
+from morpheus.stages.postprocess.add_scores_stage import AddScoresStage
 from morpheus.stages.preprocess.deserialize_stage import DeserializeStage
 from morpheus.stages.preprocess.preprocess_nlp_stage import PreprocessNLPStage
 
@@ -102,6 +103,8 @@ def pipeline(num_threads: int,
                              force_convert_inputs=True,
                              use_shared_memory=True))
     pipe.add_stage(MonitorStage(config, description="Inference rate", unit="events", delayed_start=True))
+
+    pipe.add_stage(AddScoresStage(config, labels=["embedding"]))
 
     pipe.add_stage(
         WriteToVectorDBStage(config,

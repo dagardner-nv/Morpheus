@@ -43,8 +43,6 @@ class WriteToVectorDBStage(PassThruTypeMixin, SinglePortStage):
         for managing the resource.
     resource_name : str
         The identifier of the resource on which operations are to be performed in the vector database.
-    embedding_column_name : str, optional
-        Name of the embedding column, by default "embedding".
     recreate : bool, optional
         Specifies whether to recreate the resource if it already exists, by default False.
     resource_kwargs : dict, optional
@@ -62,7 +60,6 @@ class WriteToVectorDBStage(PassThruTypeMixin, SinglePortStage):
                  config: Config,
                  service: typing.Union[str, VectorDBService],
                  resource_name: str,
-                 embedding_column_name: str = "embedding",
                  recreate: bool = False,
                  resource_kwargs: dict = None,
                  **service_kwargs):
@@ -70,7 +67,6 @@ class WriteToVectorDBStage(PassThruTypeMixin, SinglePortStage):
         super().__init__(config)
 
         self._resource_name = resource_name
-        self._embedding_column_name = embedding_column_name
         self._recreate = recreate
         self._resource_kwargs = resource_kwargs if resource_kwargs is not None else {}
 
@@ -129,11 +125,6 @@ class WriteToVectorDBStage(PassThruTypeMixin, SinglePortStage):
 
             if isinstance(msg, ControlMessage):
                 df = msg.payload().df
-            elif isinstance(msg, MultiResponseMessage):
-                df = msg.get_meta()
-                if df is not None and not df.empty:
-                    embeddings = msg.get_probs_tensor()
-                    df[self._embedding_column_name] = embeddings.tolist()
             elif isinstance(msg, MultiMessage):
                 df = msg.get_meta()
             else:

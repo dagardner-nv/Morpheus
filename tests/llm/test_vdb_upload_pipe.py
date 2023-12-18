@@ -33,6 +33,7 @@ from morpheus.service.vdb.milvus_vector_db_service import MilvusVectorDBService
 from morpheus.stages.inference.triton_inference_stage import TritonInferenceStage
 from morpheus.stages.input.rss_source_stage import RSSSourceStage
 from morpheus.stages.output.write_to_vector_db_stage import WriteToVectorDBStage
+from morpheus.stages.postprocess.add_scores_stage import AddScoresStage
 from morpheus.stages.preprocess.deserialize_stage import DeserializeStage
 from morpheus.stages.preprocess.preprocess_nlp_stage import PreprocessNLPStage
 
@@ -72,6 +73,8 @@ def _run_pipeline(config: Config,
 
     pipe.add_stage(
         TritonInferenceStage(config, model_name='test-model', server_url='test:0000', force_convert_inputs=True))
+
+    pipe.add_stage(AddScoresStage(config, labels=["embedding"]))
 
     pipe.add_stage(
         WriteToVectorDBStage(config,

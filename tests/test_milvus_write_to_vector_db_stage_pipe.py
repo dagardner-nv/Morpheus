@@ -32,6 +32,7 @@ from morpheus.stages.general.linear_modules_stage import LinearModulesStage
 from morpheus.stages.input.in_memory_source_stage import InMemorySourceStage
 from morpheus.stages.output.in_memory_sink_stage import InMemorySinkStage
 from morpheus.stages.output.write_to_vector_db_stage import WriteToVectorDBStage
+from morpheus.stages.postprocess.add_scores_stage import AddScoresStage
 from morpheus.stages.preprocess.deserialize_stage import DeserializeStage
 from morpheus.utils.module_ids import MORPHEUS_MODULE_NAMESPACE
 from morpheus.utils.module_ids import TO_CONTROL_MESSAGE
@@ -90,6 +91,8 @@ def test_write_to_vector_db_stage_from_cm_pipe(milvus_server_uri: str,
                            input_port_name="input",
                            output_port_name="output",
                            output_type=ControlMessage))
+
+    pipe.add_stage(AddScoresStage(config, labels=["embedding"]))
 
     # Provide partition name in the resource_kwargs to insert data into the partition
     # otherwise goes to '_default' partition.
@@ -155,6 +158,9 @@ def test_write_to_vector_db_stage_from_mm_pipe(milvus_server_uri: str,
     pipe.add_stage(DeserializeStage(config))
     if is_multiresponse_message:
         pipe.add_stage(ConvMsg(config, df, empty_probs=True))
+
+    pipe.add_stage(AddScoresStage(config, labels=["embedding"]))
+
     # Instantiate stage with service instance and insert options.
     pipe.add_stage(
         WriteToVectorDBStage(config,
