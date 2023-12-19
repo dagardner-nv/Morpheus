@@ -31,7 +31,10 @@ COPY ./conda_env.yml ./
 
 # Install DFP dependencies
 RUN source activate morpheus \
-    && mamba env update -n morpheus -f ./conda_env.yml
+    && mamba install -n base -c conda-forge conda-merge \
+    && conda run -n base --live-stream conda-merge /workspace/docker/conda/environments/cuda11.8_dev.yml \
+      ./conda_env.yml > ./merged.yml \
+    && mamba env update -n morpheus --file ./merged.yml
 
 # Set the tracking URI for mlflow
 ENV MLFLOW_TRACKING_URI="http://mlflow:5000"
@@ -63,7 +66,7 @@ RUN source activate morpheus &&\
         # notebook v7 is incompatible with jupyter_contrib_nbextensions
         notebook=6 &&\
     jupyter contrib nbextension install --user &&\
-    pip install jupyterlab_nvdashboard==0.7.0
+    pip install jupyterlab_nvdashboard==0.9
 
 # Launch jupyter
 CMD ["jupyter-lab", "--ip=0.0.0.0", "--no-browser", "--allow-root"]
