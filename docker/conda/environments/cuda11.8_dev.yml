@@ -33,6 +33,7 @@ dependencies:
     - cmake=3.24
     - configargparse=1.5
     - cuda-compiler=11.8
+    - cuda-python>=11.8,<11.8.3 # workaround for https://github.com/nv-morpheus/Morpheus/issues/1317
     - cuda-nvml-dev=11.8
     - cuda-toolkit=11.8
     - cudf=23.06
