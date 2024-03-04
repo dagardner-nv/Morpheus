@@ -25,7 +25,7 @@ from langchain.agents import AgentType
 from langchain.agents import initialize_agent
 from langchain.agents import load_tools
 from langchain.agents.tools import Tool
-from langchain.utilities import serpapi
+from langchain_community.utilities import serpapi
 
 import cudf
 
