@@ -258,9 +258,11 @@ triton::client::Error HttpTritonClient::async_infer(triton::client::InferenceSer
 }
 
 TritonInferenceClientSession::TritonInferenceClientSession(std::shared_ptr<ITritonClient> client,
-                                                           std::string model_name) :
+                                                           std::string model_name,
+                                                           bool force_convert_inputs) :
   m_client(std::move(client)),
-  m_model_name(std::move(model_name))
+  m_model_name(std::move(model_name)),
+  m_force_convert_inputs(force_convert_inputs)
 {
     // Now load the input/outputs for the model
 
@@ -317,12 +319,7 @@ TritonInferenceClientSession::TritonInferenceClientSession(std::shared_ptr<ITrit
             bytes *= y;
         }
 
-        m_model_inputs.push_back(TritonInOut{input.at("name").get<std::string>(),
-                                             bytes,
-                                             DType::from_triton(input.at("datatype").get<std::string>()),
-                                             shape,
-                                             "",
-                                             0});
+        m_model_inputs.push_back(TritonInOut{input.at("name").get<std::string>(), bytes, dtype, shape, "", 0});
     }
 
     for (auto const& output : model_metadata.at("outputs"))
@@ -401,6 +398,18 @@ mrc::coroutines::Task<TensorMap> TritonInferenceClientSession::infer(TensorMap&&
     for (auto& input : inputs)
     {
         CHECK_EQ(element_count, input.second.shape(0)) << "Input tensors are different sizes";
+
+        if (m_force_convert_inputs)
+        {
+            for (const auto& triton_in_out : m_model_inputs)
+            {
+                auto input_tensor = inputs[triton_in_out.mapped_name];
+                if (input_tensor.dtype() != triton_in_out.datatype)
+                {
+                    inputs[triton_in_out.mapped_name].swap(input_tensor.as_type(triton_in_out.datatype));
+                }
+            }
+        }
     }
 
     TensorMap model_output_tensors;
@@ -491,14 +500,17 @@ mrc::coroutines::Task<TensorMap> TritonInferenceClientSession::infer(TensorMap&&
     co_return model_output_tensors;
 };
 
-TritonInferenceClient::TritonInferenceClient(std::unique_ptr<ITritonClient>&& client, std::string model_name) :
+TritonInferenceClient::TritonInferenceClient(std::unique_ptr<ITritonClient>&& client,
+                                             std::string model_name,
+                                             bool force_convert_inputs) :
   m_client(std::move(client)),
-  m_model_name(std::move(model_name))
+  m_model_name(std::move(model_name)),
+  m_force_convert_inputs(force_convert_inputs)
 {}
 
 std::unique_ptr<IInferenceClientSession> TritonInferenceClient::create_session()
 {
-    return std::make_unique<TritonInferenceClientSession>(m_client, m_model_name);
+    return std::make_unique<TritonInferenceClientSession>(m_client, m_model_name, m_force_convert_inputs);
 }
 
 }  // namespace morpheus
