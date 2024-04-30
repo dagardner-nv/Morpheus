@@ -756,10 +756,9 @@ class TritonInferenceStage(InferenceStage):
 
     def supports_cpp_node(self) -> bool:
         # Get the value from the worker class
-        # The C++ impl of this stage does not support the force_convert_inputs and use_shared_memory options
+        # The C++ impl of this stage does not support the use_shared_memory option
         # Work-around for issue #1673
-        return (TritonInferenceWorker.supports_cpp_node() and not self._force_convert_inputs
-                and not self._use_shared_memory)
+        return (TritonInferenceWorker.supports_cpp_node() and not self._use_shared_memory and False)
 
     def _get_inference_worker(self, inf_queue: ProducerConsumerQueue) -> TritonInferenceWorker:
         """
@@ -784,6 +783,7 @@ class TritonInferenceStage(InferenceStage):
                                                   self._server_url,
                                                   self._model_name,
                                                   self._needs_logits,
+                                                  self._force_convert_inputs,
                                                   self._input_mapping,
                                                   self._output_mapping)
 
@@ -792,6 +792,7 @@ class TritonInferenceStage(InferenceStage):
                                               self._server_url,
                                               self._model_name,
                                               self._needs_logits,
+                                              self._force_convert_inputs,
                                               self._input_mapping,
                                               self._output_mapping)
 
