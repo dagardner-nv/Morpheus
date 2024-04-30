@@ -111,12 +111,14 @@ class MORPHEUS_EXPORT InferenceClientStage
      * @param model_name : Name of the model specifies which model can handle the inference requests that are sent to
      * Triton inference
      * @param needs_logits : Determines if logits are required.
+     * @param force_convert_inputs : Determines if inputs should be converted to the model's input format.
      * @param inout_mapping : Dictionary used to map pipeline input/output names to Triton input/output names. Use this
      * if the Morpheus names do not match the model.
      */
     InferenceClientStage(std::unique_ptr<IInferenceClient>&& client,
                          std::string model_name,
                          bool needs_logits,
+                         bool force_convert_inputs,
                          std::vector<TensorModelMapping> input_mapping,
                          std::vector<TensorModelMapping> output_mapping);
 
@@ -154,6 +156,7 @@ struct MORPHEUS_EXPORT InferenceClientStageInterfaceProxy
      * Triton inference
      * @param server_url : Triton server URL.
      * @param needs_logits : Determines if logits are required.
+     * @param force_convert_inputs : Determines if inputs should be converted to the model's input format.
      * @param inout_mapping : Dictionary used to map pipeline input/output names to Triton input/output names. Use this
      * if the Morpheus names do not match the model.
      * @return std::shared_ptr<mrc::segment::Object<InferenceClientStage<MultiInferenceMessage, MultiResponseMessage>>>
@@ -164,6 +167,7 @@ struct MORPHEUS_EXPORT InferenceClientStageInterfaceProxy
             std::string model_name,
             std::string server_url,
             bool needs_logits,
+            bool force_convert_inputs,
             std::map<std::string, std::string> input_mapping,
             std::map<std::string, std::string> output_mapping);
 
@@ -176,6 +180,7 @@ struct MORPHEUS_EXPORT InferenceClientStageInterfaceProxy
      * Triton inference
      * @param server_url : Triton server URL.
      * @param needs_logits : Determines if logits are required.
+     * @param force_convert_inputs : Determines if inputs should be converted to the model's input format.
      * @param inout_mapping : Dictionary used to map pipeline input/output names to Triton input/output names. Use this
      * if the Morpheus names do not match the model.
      * @return std::shared_ptr<mrc::segment::Object<InferenceClientStage<ControlMessage, ControlMessage>>>
@@ -186,6 +191,7 @@ struct MORPHEUS_EXPORT InferenceClientStageInterfaceProxy
         std::string model_name,
         std::string server_url,
         bool needs_logits,
+        bool force_convert_inputs,
         std::map<std::string, std::string> input_mapping,
         std::map<std::string, std::string> output_mapping);
 };
