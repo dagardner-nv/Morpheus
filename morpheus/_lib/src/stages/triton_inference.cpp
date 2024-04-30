@@ -403,10 +403,11 @@ mrc::coroutines::Task<TensorMap> TritonInferenceClientSession::infer(TensorMap&&
         {
             for (const auto& triton_in_out : m_model_inputs)
             {
-                auto input_tensor = inputs[triton_in_out.mapped_name];
+                auto input_tensor = inputs.at(triton_in_out.name);
                 if (input_tensor.dtype() != triton_in_out.datatype)
                 {
-                    inputs[triton_in_out.mapped_name].swap(input_tensor.as_type(triton_in_out.datatype));
+                    auto converted_tensor = input_tensor.as_type(triton_in_out.datatype);
+                    inputs[triton_in_out.name].swap(std::move(converted_tensor));
                 }
             }
         }
