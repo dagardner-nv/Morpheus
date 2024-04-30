@@ -197,6 +197,7 @@ template <typename InputT, typename OutputT>
 InferenceClientStage<InputT, OutputT>::InferenceClientStage(std::unique_ptr<IInferenceClient>&& client,
                                                             std::string model_name,
                                                             bool needs_logits,
+                                                            bool force_convert_inputs,
                                                             std::vector<TensorModelMapping> input_mapping,
                                                             std::vector<TensorModelMapping> output_mapping) :
   m_model_name(std::move(model_name)),
@@ -377,6 +378,7 @@ InferenceClientStageInterfaceProxy::init_mm(mrc::segment::Builder& builder,
                                             std::string server_url,
                                             std::string model_name,
                                             bool needs_logits,
+                                            bool force_convert_inputs,
                                             std::map<std::string, std::string> input_mappings,
                                             std::map<std::string, std::string> output_mappings)
 {
@@ -393,10 +395,17 @@ InferenceClientStageInterfaceProxy::init_mm(mrc::segment::Builder& builder,
         output_mappings_.emplace_back(TensorModelMapping{mapping.first, mapping.second});
     }
 
-    auto triton_client           = std::make_unique<HttpTritonClient>(server_url);
-    auto triton_inference_client = std::make_unique<TritonInferenceClient>(std::move(triton_client), model_name);
+    auto triton_client = std::make_unique<HttpTritonClient>(server_url);
+    auto triton_inference_client =
+        std::make_unique<TritonInferenceClient>(std::move(triton_client), model_name, force_convert_inputs);
     auto stage = builder.construct_object<InferenceClientStage<MultiInferenceMessage, MultiResponseMessage>>(
-        name, std::move(triton_inference_client), model_name, needs_logits, input_mappings_, output_mappings_);
+        name,
+        std::move(triton_inference_client),
+        model_name,
+        needs_logits,
+        force_convert_inputs,
+        input_mappings_,
+        output_mappings_);
 
     return stage;
 }
@@ -408,6 +417,7 @@ InferenceClientStageInterfaceProxy::init_cm(mrc::segment::Builder& builder,
                                             std::string server_url,
                                             std::string model_name,
                                             bool needs_logits,
+                                            bool force_convert_inputs,
                                             std::map<std::string, std::string> input_mappings,
                                             std::map<std::string, std::string> output_mappings)
 {
@@ -424,10 +434,17 @@ InferenceClientStageInterfaceProxy::init_cm(mrc::segment::Builder& builder,
         output_mappings_.emplace_back(TensorModelMapping{mapping.first, mapping.second});
     }
 
-    auto triton_client           = std::make_unique<HttpTritonClient>(server_url);
-    auto triton_inference_client = std::make_unique<TritonInferenceClient>(std::move(triton_client), model_name);
-    auto stage                   = builder.construct_object<InferenceClientStage<ControlMessage, ControlMessage>>(
-        name, std::move(triton_inference_client), model_name, needs_logits, input_mappings_, output_mappings_);
+    auto triton_client = std::make_unique<HttpTritonClient>(server_url);
+    auto triton_inference_client =
+        std::make_unique<TritonInferenceClient>(std::move(triton_client), model_name, force_convert_inputs);
+    auto stage = builder.construct_object<InferenceClientStage<ControlMessage, ControlMessage>>(
+        name,
+        std::move(triton_inference_client),
+        model_name,
+        needs_logits,
+        force_convert_inputs,
+        input_mappings_,
+        output_mappings_);
 
     return stage;
 }
