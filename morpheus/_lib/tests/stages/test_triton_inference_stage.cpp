@@ -307,10 +307,11 @@ TEST_F(TestTritonInferenceStage, SingleRow)
     auto message = std::make_shared<morpheus::MultiInferenceMessage>(meta, 0, count, memory);
 
     // create the fake triton client used for testing.
-    auto triton_client           = std::make_unique<FakeTritonClient>();
-    auto triton_inference_client = std::make_unique<morpheus::TritonInferenceClient>(std::move(triton_client), "");
+    auto triton_client = std::make_unique<FakeTritonClient>();
+    auto triton_inference_client =
+        std::make_unique<morpheus::TritonInferenceClient>(std::move(triton_client), "", false);
     auto stage = morpheus::InferenceClientStage<morpheus::MultiInferenceMessage, morpheus::MultiResponseMessage>(
-        std::move(triton_inference_client), "", false, {}, {});
+        std::move(triton_inference_client), "", false, false, {}, {});
 
     // manually invoke the stage and iterate through the inference responses
     auto on           = std::make_shared<mrc::coroutines::TestScheduler>();
