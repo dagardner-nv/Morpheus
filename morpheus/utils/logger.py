@@ -13,6 +13,7 @@
 # limitations under the License.
 """Logging utilities for Morpheus"""
 
+import contextvars
 import json
 import logging
 import logging.config
@@ -27,6 +28,15 @@ import mrc
 from tqdm import tqdm
 
 LogLevels = Enum('LogLevels', logging._nameToLevel)
+
+morpheus_logging_ctx = contextvars.ContextVar('morpheus_logging_ctx', default=None)
+
+
+class ContextVarFormatter(logging.Formatter):
+
+    def format(self, record):
+        record.morpheus_context = morpheus_logging_ctx.get({})
+        return super().format(record)
 
 
 class TqdmLoggingHandler(logging.Handler):
@@ -135,7 +145,8 @@ def _configure_from_log_level(*extra_handlers: logging.Handler, log_level: int):
     file_handler = logging.handlers.RotatingFileHandler(filename=log_file, backupCount=5, maxBytes=1000000)
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(
-        logging.Formatter('%(asctime)s - [%(levelname)s]: %(message)s {%(name)s, %(threadName)s}'))
+        ContextVarFormatter(
+            '%(asctime)s - %(morpheus_context)s - [%(levelname)s]: %(message)s {%(name)s, %(threadName)s}'))
 
     # Tqdm stream handler (avoids messing with progress bars)
     console_handler = TqdmLoggingHandler()
