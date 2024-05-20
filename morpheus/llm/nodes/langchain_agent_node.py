@@ -18,6 +18,7 @@ import typing
 
 from morpheus.llm import LLMContext
 from morpheus.llm import LLMNodeBase
+from morpheus.utils.logger import morpheus_logging_ctx
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +68,7 @@ class LangChainAgentNode(LLMNodeBase):
 
         # We are not dealing with a list, so run single
         try:
+            morpheus_logging_ctx.set(kwargs)
             return await self._agent_executor.arun(**kwargs)
         except Exception as e:
             error_msg = f"Error running agent: {e}"
@@ -76,6 +78,7 @@ class LangChainAgentNode(LLMNodeBase):
     async def execute(self, context: LLMContext) -> LLMContext:  # pylint: disable=invalid-overridden-method
 
         input_dict = context.get_inputs()
+        morpheus_logging_ctx.set(input_dict)
 
         results = await self._run_single(**input_dict)
 
