@@ -25,7 +25,9 @@ from scapy.all import send
 
 
 def main():
-    os.chdir("dataset")
+    cur_dir = os.path.dirname(os.path.realpath(__file__))
+    dataset_dir = os.path.join(cur_dir, "dataset")
+    os.chdir(dataset_dir)
     for file in glob.glob("*.txt"):
         with open(file, 'r', encoding='utf-8') as fp:
             while True:
