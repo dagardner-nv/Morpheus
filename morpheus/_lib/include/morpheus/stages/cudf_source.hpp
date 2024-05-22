@@ -36,10 +36,10 @@
 
 namespace morpheus {
 
-class MORPHEUS_EXPORT CudfSourceStage : public mrc::pymrc::PythonSource<std::shared_ptr<MessageMeta>>
+class MORPHEUS_EXPORT CudfSourceStage : public mrc::pymrc::PythonSource<cudf::io::table_with_metadata>
 {
   public:
-    using base_t = mrc::pymrc::PythonSource<std::shared_ptr<MessageMeta>>;
+    using base_t = mrc::pymrc::PythonSource<cudf::io::table_with_metadata>;
     using typename base_t::source_type_t;
     using typename base_t::subscriber_fn_t;
 

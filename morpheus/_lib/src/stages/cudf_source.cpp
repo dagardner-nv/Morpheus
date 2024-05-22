@@ -104,8 +104,8 @@ CudfSourceStage::subscriber_fn_t CudfSourceStage::build()
             metadata.schema_info.emplace_back("data");
 
             auto table_w_metadata = cudf::io::table_with_metadata{std::move(table), std::move(metadata)};
-            auto meta             = MessageMeta::create_from_cpp(std::move(table_w_metadata), 0);
-            output.on_next(std::move(meta));
+            // auto meta             = MessageMeta::create_from_cpp(std::move(table_w_metadata), 0);
+            output.on_next(std::move(table_w_metadata));
         }
 
         const auto end_time{std::chrono::steady_clock::now()};
