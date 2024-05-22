@@ -37,6 +37,7 @@
 #include <pybind11/pytypes.h>   // for pybind11::int_
 #include <rmm/device_buffer.hpp>
 
+#include <chrono>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -72,9 +73,6 @@ CudfSourceStage::subscriber_fn_t CudfSourceStage::build()
         }
 
         // Create rmm buffers for the columns
-        DType int_type(TypeId::INT32);
-        DType float_type(TypeId::FLOAT32);
-
         auto int_buffer = std::make_shared<rmm::device_uvector<int>>(int_col.size(), rmm::cuda_stream_per_thread);
 
         auto float_buffer = std::make_shared<rmm::device_uvector<float>>(int_col.size(), rmm::cuda_stream_per_thread);
@@ -83,6 +81,8 @@ CudfSourceStage::subscriber_fn_t CudfSourceStage::build()
             cudaMemcpy(int_buffer->data(), int_col.data(), sizeof(int) * int_col.size(), cudaMemcpyHostToDevice));
         MRC_CHECK_CUDA(cudaMemcpy(
             float_buffer->data(), float_col.data(), sizeof(float) * float_col.size(), cudaMemcpyHostToDevice));
+
+        const auto start_time{std::chrono::steady_clock::now()};
 
         for (std::size_t message_count = 0; message_count < m_num_messages && output.is_subscribed(); ++message_count)
         {
@@ -111,6 +111,19 @@ CudfSourceStage::subscriber_fn_t CudfSourceStage::build()
             auto meta             = MessageMeta::create_from_cpp(std::move(table_w_metadata), 0);
             output.on_next(std::move(meta));
         }
+
+        const auto end_time{std::chrono::steady_clock::now()};
+        const std::chrono::duration<double> elapsed_seconds{end_time - start_time};
+        const auto row_size = sizeof(int) + sizeof(float);
+        const auto ttl_rows = m_num_messages * m_num_rows;
+
+        std::cerr << std::fixed << std::setprecision(2) << "CudfSourceStage\tnum_messages = " << m_num_messages
+                  << "\trows = " << m_num_rows << "\ttotal_rows = " << ttl_rows << "\trow_size = " << row_size
+                  << " bytes\t"
+                  << "time = " << elapsed_seconds.count() << " seconds\n"
+                  << "Rows/s = " << ttl_rows / elapsed_seconds.count()
+                  << "\tBytes/s = " << (ttl_rows * row_size) / elapsed_seconds.count() << std::endl
+                  << std::endl;
 
         output.on_completed();
     };
