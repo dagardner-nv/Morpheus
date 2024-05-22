@@ -71,7 +71,7 @@ CudfSourceStage::subscriber_fn_t CudfSourceStage::build()
         // Create rmm buffers for the columns
         auto int_buffer = std::make_shared<rmm::device_uvector<int>>(int_col.size(), rmm::cuda_stream_per_thread);
 
-        auto float_buffer = std::make_shared<rmm::device_uvector<float>>(int_col.size(), rmm::cuda_stream_per_thread);
+        auto float_buffer = std::make_shared<rmm::device_uvector<float>>(float_col.size(), rmm::cuda_stream_per_thread);
 
         MRC_CHECK_CUDA(
             cudaMemcpy(int_buffer->data(), int_col.data(), sizeof(int) * int_col.size(), cudaMemcpyHostToDevice));
@@ -82,30 +82,17 @@ CudfSourceStage::subscriber_fn_t CudfSourceStage::build()
 
         for (std::size_t message_count = 0; message_count < m_num_messages && output.is_subscribed(); ++message_count)
         {
-            auto int_buffer_copy =
-                rmm::device_uvector<int>(*int_buffer, int_buffer->stream(), int_buffer->memory_resource());
-            auto float_buffer_copy =
-                rmm::device_uvector<float>(*float_buffer, float_buffer->stream(), float_buffer->memory_resource());
+            auto int_buffer_copy = std::make_unique<rmm::device_uvector<int>>(
+                *int_buffer, int_buffer->stream(), int_buffer->memory_resource());
+            auto float_buffer_copy = std::make_unique<rmm::device_uvector<float>>(
+                *float_buffer, float_buffer->stream(), float_buffer->memory_resource());
 
-            mrc::enqueue_stream_sync_event(int_buffer_copy.stream()).get();
-            mrc::enqueue_stream_sync_event(float_buffer_copy.stream()).get();
+            mrc::enqueue_stream_sync_event(int_buffer_copy->stream()).get();
+            mrc::enqueue_stream_sync_event(float_buffer_copy->stream()).get();
 
-            std::vector<std::unique_ptr<cudf::column>> columns;
+            RMMHolder holder{std::move(int_buffer_copy), std::move(float_buffer_copy)};
 
-            columns.emplace_back(std::make_unique<cudf::column>(
-                std::move(int_buffer_copy), rmm::device_buffer(0, int_buffer_copy.stream()), 0));
-
-            columns.emplace_back(std::make_unique<cudf::column>(
-                std::move(float_buffer_copy), rmm::device_buffer(0, int_buffer_copy.stream()), 0));
-
-            auto table    = std::make_unique<cudf::table>(std::move(columns));
-            auto metadata = cudf::io::table_metadata();
-            metadata.schema_info.emplace_back("src_ip");
-            metadata.schema_info.emplace_back("data");
-
-            auto table_w_metadata = cudf::io::table_with_metadata{std::move(table), std::move(metadata)};
-            // auto meta             = MessageMeta::create_from_cpp(std::move(table_w_metadata), 0);
-            output.on_next(std::move(table_w_metadata));
+            output.on_next(std::move(holder));
         }
 
         const auto end_time{std::chrono::steady_clock::now()};

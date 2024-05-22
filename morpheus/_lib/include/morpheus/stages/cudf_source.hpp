@@ -36,10 +36,16 @@
 
 namespace morpheus {
 
-class MORPHEUS_EXPORT CudfSourceStage : public mrc::pymrc::PythonSource<cudf::io::table_with_metadata>
+struct MORPHEUS_EXPORT RMMHolder
+{
+    std::unique_ptr<rmm::device_uvector<int>> int_vector;
+    std::unique_ptr<rmm::device_uvector<float>> float_vector;
+};
+
+class MORPHEUS_EXPORT CudfSourceStage : public mrc::pymrc::PythonSource<RMMHolder>
 {
   public:
-    using base_t = mrc::pymrc::PythonSource<cudf::io::table_with_metadata>;
+    using base_t = mrc::pymrc::PythonSource<RMMHolder>;
     using typename base_t::source_type_t;
     using typename base_t::subscriber_fn_t;
 
