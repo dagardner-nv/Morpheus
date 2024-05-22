@@ -18,6 +18,7 @@ __all__ = [
     "AddClassificationsMultiResponseMessageStage",
     "AddScoresControlMessageStage",
     "AddScoresMultiResponseMessageStage",
+    "CudfSourceStage",
     "DeserializeControlMessageStage",
     "DeserializeMultiMessageStage",
     "FileSourceStage",
@@ -52,6 +53,9 @@ class AddScoresControlMessageStage(mrc.core.segment.SegmentObject):
     pass
 class AddScoresMultiResponseMessageStage(mrc.core.segment.SegmentObject):
     def __init__(self, builder: mrc.core.segment.Builder, name: str, idx2label: typing.Dict[int, str]) -> None: ...
+    pass
+class CudfSourceStage(mrc.core.segment.SegmentObject):
+    def __init__(self, builder: mrc.core.segment.Builder, name: str, num_messages: int = 65536, num_rows: int = 65536) -> None: ...
     pass
 class DeserializeControlMessageStage(mrc.core.segment.SegmentObject):
     def __init__(self, builder: mrc.core.segment.Builder, name: str, batch_size: int, ensure_sliceable_index: bool = True, task_type: object = None, task_payload: object = None) -> None: ...

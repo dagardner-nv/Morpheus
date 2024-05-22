@@ -23,6 +23,7 @@
 #include "morpheus/objects/file_types.hpp"
 #include "morpheus/stages/add_classification.hpp"
 #include "morpheus/stages/add_scores.hpp"
+#include "morpheus/stages/cudf_source.hpp"
 #include "morpheus/stages/deserialize.hpp"
 #include "morpheus/stages/file_source.hpp"
 #include "morpheus/stages/filter_detections.hpp"
@@ -167,6 +168,16 @@ PYBIND11_MODULE(stages, _module)
              py::arg("filter_null"),
              py::arg("filter_null_columns"),
              py::arg("parser_kwargs"));
+
+    py::class_<mrc::segment::Object<CudfSourceStage>,
+               mrc::segment::ObjectProperties,
+               std::shared_ptr<mrc::segment::Object<CudfSourceStage>>>(
+        _module, "CudfSourceStage", py::multiple_inheritance())
+        .def(py::init<>(&CudfSourceStageInterfaceProxy::init),
+             py::arg("builder"),
+             py::arg("name"),
+             py::arg("num_messages") = 65536,
+             py::arg("num_rows")     = 65536);
 
     py::class_<mrc::segment::Object<FilterDetectionsStageMM>,
                mrc::segment::ObjectProperties,

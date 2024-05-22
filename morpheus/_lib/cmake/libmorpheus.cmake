@@ -68,6 +68,7 @@ add_library(morpheus
   src/stages/add_classification.cpp
   src/stages/add_scores_stage_base.cpp
   src/stages/add_scores.cpp
+  src/stages/cudf_source.cpp
   src/stages/deserialize.cpp
   src/stages/file_source.cpp
   src/stages/filter_detections.cpp
@@ -195,13 +196,13 @@ include(GNUInstallDirs)
 
 install(
     TARGETS
-      morpheus
+  morpheus
     EXPORT
-      ${PROJECT_NAME}-core-exports
+  ${PROJECT_NAME}-core-exports
     LIBRARY
     DESTINATION ${lib_dir}
     FILE_SET
-      public_headers
+  public_headers
 )
 
 # ##################################################################################################
