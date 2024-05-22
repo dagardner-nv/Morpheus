@@ -61,15 +61,11 @@ CudfSourceStage::subscriber_fn_t CudfSourceStage::build()
         // Create host data
         std::vector<int> int_col;
         std::vector<float> float_col;
-        std::vector<std::string> str_col;
-
-        // cudf::make_strings_column(str_col);
 
         for (std::size_t row = 0; row < m_num_rows; ++row)
         {
             int_col.push_back(row);
             float_col.push_back(static_cast<float>(row) * 0.1f);
-            str_col.push_back(std::to_string(row));
         }
 
         // Create rmm buffers for the columns
