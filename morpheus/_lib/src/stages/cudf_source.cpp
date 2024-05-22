@@ -82,14 +82,14 @@ CudfSourceStage::subscriber_fn_t CudfSourceStage::build()
 
         for (std::size_t message_count = 0; message_count < m_num_messages && output.is_subscribed(); ++message_count)
         {
-            auto int_buffer_copy = std::make_unique<rmm::device_uvector<int>>(
-                *int_buffer, int_buffer->stream(), int_buffer->memory_resource());
-            auto float_buffer_copy = std::make_unique<rmm::device_uvector<float>>(
-                *float_buffer, float_buffer->stream(), float_buffer->memory_resource());
+            // auto int_buffer_copy = std::make_unique<rmm::device_uvector<int>>(
+            //     *int_buffer, int_buffer->stream(), int_buffer->memory_resource());
+            // auto float_buffer_copy = std::make_unique<rmm::device_uvector<float>>(
+            //     *float_buffer, float_buffer->stream(), float_buffer->memory_resource());
 
             mrc::enqueue_stream_sync_event(rmm::cuda_stream_per_thread).get();
 
-            RMMHolder holder{std::move(int_buffer_copy), std::move(float_buffer_copy)};
+            RMMHolder holder{int_buffer, float_buffer};
 
             output.on_next(std::move(holder));
         }

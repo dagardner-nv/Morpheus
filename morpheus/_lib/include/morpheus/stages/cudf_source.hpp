@@ -38,8 +38,8 @@ namespace morpheus {
 
 struct MORPHEUS_EXPORT RMMHolder
 {
-    std::unique_ptr<rmm::device_uvector<int>> int_vector;
-    std::unique_ptr<rmm::device_uvector<float>> float_vector;
+    std::shared_ptr<rmm::device_uvector<int>> int_vector;
+    std::shared_ptr<rmm::device_uvector<float>> float_vector;
 };
 
 class MORPHEUS_EXPORT CudfSourceStage : public mrc::pymrc::PythonSource<RMMHolder>
