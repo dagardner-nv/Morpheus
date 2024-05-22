@@ -97,10 +97,10 @@ CudfSourceStage::subscriber_fn_t CudfSourceStage::build()
             std::vector<std::unique_ptr<cudf::column>> columns;
 
             columns.emplace_back(std::make_unique<cudf::column>(
-                std::move(int_buffer_copy), std::move(rmm::device_buffer(0, int_buffer_copy.stream())), 0));
+                std::move(int_buffer_copy), rmm::device_buffer(0, int_buffer_copy.stream()), 0));
 
             columns.emplace_back(std::make_unique<cudf::column>(
-                std::move(float_buffer_copy), std::move(rmm::device_buffer(0, int_buffer_copy.stream())), 0));
+                std::move(float_buffer_copy), rmm::device_buffer(0, int_buffer_copy.stream()), 0));
 
             auto table    = std::make_unique<cudf::table>(std::move(columns));
             auto metadata = cudf::io::table_metadata();
