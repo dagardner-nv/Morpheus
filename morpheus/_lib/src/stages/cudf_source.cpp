@@ -71,7 +71,7 @@ CudfSourceStage::subscriber_fn_t CudfSourceStage::build()
         // Create rmm buffers for the columns
         auto int_buffer = std::make_shared<rmm::device_uvector<int>>(int_col.size(), rmm::cuda_stream_per_thread);
 
-        auto float_buffer = std::make_shared<rmm::device_uvector<float>>(int_col.size(), rmm::cuda_stream_per_thread);
+        auto float_buffer = std::make_shared<rmm::device_uvector<float>>(float_col.size(), rmm::cuda_stream_per_thread);
 
         MRC_CHECK_CUDA(
             cudaMemcpy(int_buffer->data(), int_col.data(), sizeof(int) * int_col.size(), cudaMemcpyHostToDevice));
