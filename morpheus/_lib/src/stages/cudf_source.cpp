@@ -87,7 +87,8 @@ CudfSourceStage::subscriber_fn_t CudfSourceStage::build()
             auto float_buffer_copy = std::make_unique<rmm::device_uvector<float>>(
                 *float_buffer, float_buffer->stream(), float_buffer->memory_resource());
 
-            mrc::enqueue_stream_sync_event(rmm::cuda_stream_per_thread).get();
+            // mrc::enqueue_stream_sync_event(rmm::cuda_stream_per_thread).get();
+            MRC_CHECK_CUDA(cudaStreamSynchronize(rmm::cuda_stream_per_thread));
 
             RMMHolder holder{std::move(int_buffer_copy), std::move(float_buffer_copy)};
 
