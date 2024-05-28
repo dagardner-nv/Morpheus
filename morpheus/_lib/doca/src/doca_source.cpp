@@ -93,16 +93,24 @@ DocaSourceStage::subscriber_fn_t DocaSourceStage::build()
         CUdevice cuDevice;
         CUcontext cuContext;
 
-        cudaSetDevice(0);  // Need to rely on GPU 0
-        cudaFree(0);
-        cuDeviceGet(&cuDevice, 0);
-        cuCtxCreate(&cuContext, CU_CTX_SCHED_SPIN | CU_CTX_MAP_HOST, cuDevice);
-        cuCtxPushCurrent(cuContext);
+        // We specify the PCI address of the GPU to use, but here we hard-code to use GPU 0
+        // What happens if we have multiple GPUs, but GPU 0 doesn't mean the minimum reqs?
+        MRC_CHECK_CUDA(cudaSetDevice(0));  // Need to rely on GPU 0  // why?
+        cudaFree(0);                       // no-op
+        MRC_CHECK_CUDA(cuDeviceGet(&cuDevice, 0));
+
+        // Check meanings of these flags
+        MRC_CHECK_CUDA(cuCtxCreate(&cuContext, CU_CTX_SCHED_SPIN | CU_CTX_MAP_HOST, cuDevice));
+        MRC_CHECK_CUDA(cuCtxPushCurrent(cuContext));
 
         struct packets_info* pkt_ptr;
         int sem_idx[MAX_QUEUE] = {0};
         cudaStream_t rstream   = nullptr;
-        int thread_idx         = mrc::runnable::Context::get_runtime_context().rank();
+
+        if (mrc::runnable::Context::get_runtime_context().rank() > 1)
+        {
+            MORPHEUS_FAIL("Only 1 CPU threads is allowed to run the DOCA Source Stage");
+        }
 
         // Add per queue
         auto pkt_addr_unique = std::make_unique<morpheus::doca::DocaMem<uintptr_t>>(
@@ -112,16 +120,12 @@ DocaSourceStage::subscriber_fn_t DocaSourceStage::build()
         auto pkt_pld_size_unique = std::make_unique<morpheus::doca::DocaMem<uint32_t>>(
             m_context, MAX_PKT_RECEIVE * MAX_SEM_X_QUEUE, DOCA_GPU_MEM_TYPE_GPU);
 
-        if (thread_idx > 1)
-        {
-            MORPHEUS_FAIL("Only 1 CPU threads is allowed to run the DOCA Source Stage");
-        }
-
         // Dedicated CUDA stream for the receiver kernel
-        cudaStreamCreateWithFlags(&rstream, cudaStreamNonBlocking);
+        MRC_CHECK_CUDA(cudaStreamCreateWithFlags(&rstream, cudaStreamNonBlocking));
+
         mrc::Unwinder ensure_cleanup([rstream]() {
             // Ensure that the stream gets cleaned up even if we error
-            cudaStreamDestroy(rstream);
+            MRC_CHECK_CUDA(cudaStreamDestroy(rstream));
         });
 
         for (int queue_idx = 0; queue_idx < MAX_QUEUE; queue_idx++)
@@ -156,16 +160,19 @@ DocaSourceStage::subscriber_fn_t DocaSourceStage::build()
             const auto start_kernel = now_ns();
 #endif
             // Assume MAX_QUEUE is 2
-            morpheus::doca::packet_receive_kernel(m_rxq[0]->rxq_info_gpu(),
-                                                  m_rxq[1]->rxq_info_gpu(),
-                                                  m_semaphore[0]->gpu_ptr(),
-                                                  m_semaphore[1]->gpu_ptr(),
-                                                  sem_idx[0],
-                                                  sem_idx[1],
-                                                  (m_traffic_type == DOCA_TRAFFIC_TYPE_TCP) ? true : false,
-                                                  exit_condition->gpu_ptr(),
-                                                  rstream);
-            cudaStreamSynchronize(rstream);
+            MRC_CHECK_CUDA(morpheus::doca::packet_receive_kernel(m_rxq[0]->rxq_info_gpu(),
+                                                                 m_rxq[1]->rxq_info_gpu(),
+                                                                 m_semaphore[0]->gpu_ptr(),
+                                                                 m_semaphore[1]->gpu_ptr(),
+                                                                 sem_idx[0],
+                                                                 sem_idx[1],
+                                                                 (m_traffic_type == DOCA_TRAFFIC_TYPE_TCP),
+                                                                 exit_condition->gpu_ptr(),
+                                                                 rstream));
+
+            // Are we syncing on each individual packet? or can packet_receive_kernel receive multiple packets?
+            // consider mrc::enqueue_stream_sync_event
+            MRC_CHECK_CUDA(cudaStreamSynchronize(rstream));
 
 #if ENABLE_TIMERS == 1
             const auto end_kernel = now_ns();
@@ -187,6 +194,10 @@ DocaSourceStage::subscriber_fn_t DocaSourceStage::build()
                     if (pkt_ptr->packet_count_out > PACKETS_PER_BLOCK)
                         LOG(ERROR) << "Received " << pkt_ptr->packet_count_out << " pkts > max pkts "
                                    << PACKETS_PER_BLOCK;
+                    else
+                    {
+                        LOG(INFO) << "Received " << pkt_ptr->packet_count_out << "/" << PACKETS_PER_BLOCK << " pkts";
+                    }
 
                     // Create RawPacketMessage with the burst of packets just received
                     auto meta = RawPacketMessage::create_from_cpp(pkt_ptr->packet_count_out,
@@ -215,7 +226,7 @@ DocaSourceStage::subscriber_fn_t DocaSourceStage::build()
 
         output.on_completed();
 
-        cuCtxPopCurrent(&cuContext);
+        MRC_CHECK_CUDA(cuCtxPopCurrent(&cuContext));
     };
 }
 
