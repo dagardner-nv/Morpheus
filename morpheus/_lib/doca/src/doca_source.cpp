@@ -90,18 +90,17 @@ static uint64_t now_ns()
 DocaSourceStage::subscriber_fn_t DocaSourceStage::build()
 {
     return [this](rxcpp::subscriber<source_type_t> output) {
-        CUdevice cuDevice;
-        CUcontext cuContext;
+        // CUdevice cuDevice;
+        // CUcontext cuContext;
 
-        // We specify the PCI address of the GPU to use, but here we hard-code to use GPU 0
-        // What happens if we have multiple GPUs, but GPU 0 doesn't mean the minimum reqs?
-        MRC_CHECK_CUDA(cudaSetDevice(0));  // Need to rely on GPU 0  // why?
-        cudaFree(0);                       // no-op
-        MRC_CHECK_CUDA(cuDeviceGet(&cuDevice, 0));
+        // Removing per feedback from  @eago
+        // MRC_CHECK_CUDA(cudaSetDevice(0));  // Need to rely on GPU 0  // why?
+        // cudaFree(0);                       // no-op
+        // MRC_CHECK_CUDA(cuDeviceGet(&cuDevice, 0));
 
-        // Check meanings of these flags
-        MRC_CHECK_CUDA(cuCtxCreate(&cuContext, CU_CTX_SCHED_SPIN | CU_CTX_MAP_HOST, cuDevice));
-        MRC_CHECK_CUDA(cuCtxPushCurrent(cuContext));
+        // // Check meanings of these flags
+        // MRC_CHECK_CUDA(cuCtxCreate(&cuContext, CU_CTX_SCHED_SPIN | CU_CTX_MAP_HOST, cuDevice));
+        // MRC_CHECK_CUDA(cuCtxPushCurrent(cuContext));
 
         struct packets_info* pkt_ptr;
         int sem_idx[MAX_QUEUE] = {0};
