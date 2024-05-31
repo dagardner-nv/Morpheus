@@ -225,7 +225,7 @@ DocaSourceStage::subscriber_fn_t DocaSourceStage::build()
 
         output.on_completed();
 
-        MRC_CHECK_CUDA(cuCtxPopCurrent(&cuContext));
+        // MRC_CHECK_CUDA(cuCtxPopCurrent(&cuContext));
     };
 }
 
