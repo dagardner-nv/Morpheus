@@ -53,6 +53,8 @@ ARG MORPHEUS_ROOT_HOST=.
 # Supply a channel alias to use for conda. This is needed if the conda channels go down
 ARG CONDA_CHANNEL_ALIAS="https://conda.anaconda.org"
 
+ARG COPY_FILES=""
+
 # ============ Stage: base ============
 # Configure the base conda environment
 FROM ${FROM_IMAGE}:${CUDA_MAJOR_VER}.${CUDA_MINOR_VER}.${CUDA_REV_VER}-base-${LINUX_DISTRO}${LINUX_VER} AS base
@@ -218,7 +220,9 @@ RUN --mount=type=cache,id=workspace_cache,target=/workspace/.cache,sharing=locke
     git config --global --add safe.directory "*" &&\
     # Change to the morpheus directory and build the conda package
     cd ${MORPHEUS_ROOT_HOST} &&\
-    MORPHEUS_PYTHON_BUILD_STUBS=OFF CONDA_BLD_PATH=/opt/conda/conda-bld ./ci/conda/recipes/run_conda_build.sh morpheus
+    # TODO temporarily disabling, DO NOT MERGE
+    mkdir -p /opt/conda/conda-bld &&\
+    echo MORPHEUS_PYTHON_BUILD_STUBS=OFF CONDA_BLD_PATH=/opt/conda/conda-bld ./ci/conda/recipes/run_conda_build.sh morpheus
 
 # ============ Stage: runtime_conda_create ============
 # Setup conda for the runtime environment
@@ -237,35 +241,30 @@ RUN --mount=type=bind,from=conda_bld_morpheus,source=/opt/conda/conda-bld,target
     python -m pip uninstall -y pip && \
     source activate morpheus &&\
     # Install morpheus
-    CONDA_ALWAYS_YES=true /opt/conda/bin/mamba install -n morpheus \
-        -c local \
-        -c conda-forge \
-        -c huggingface \
-        -c rapidsai \
-        -c rapidsai-nightly \
-        -c nvidia \
-        -c nvidia/label/dev \
-        -c pytorch \
-        -c defaults \
-        morpheus && \
-    /opt/conda/bin/conda env update --solver=libmamba -n morpheus --file \
-        conda/environments/runtime_cuda-${CUDA_MAJOR_VER}${CUDA_MINOR_VER}_arch-x86_64.yaml
+    # CONDA_ALWAYS_YES=true /opt/conda/bin/mamba install -n morpheus \
+    #     -c local \
+    #     -c conda-forge \
+    #     -c huggingface \
+    #     -c rapidsai \
+    #     -c rapidsai-nightly \
+    #     -c nvidia \
+    #     -c nvidia/label/dev \
+    #     -c pytorch \
+    #     -c defaults \
+    #     morpheus && \
+    # /opt/conda/bin/conda env update --solver=libmamba -n morpheus --file \
+    #     conda/environments/runtime_cuda-${CUDA_MAJOR_VER}${CUDA_MINOR_VER}_arch-x86_64.yaml
+    echo "here"
 
 # ============ Stage: runtime ============
 # Setup container for runtime environment
 FROM runtime_conda_create as runtime
 
 ARG MORPHEUS_ROOT_HOST
+ARG COPY_FILES
 
 # Only copy specific files/folders over that are necessary for runtime
-COPY "${MORPHEUS_ROOT_HOST}/conda/environments/*.yaml" "./conda/environments/"
-COPY "${MORPHEUS_ROOT_HOST}/docker" "./docker"
-COPY "${MORPHEUS_ROOT_HOST}/docs" "./docs"
-COPY "${MORPHEUS_ROOT_HOST}/examples" "./examples"
-COPY "${MORPHEUS_ROOT_HOST}/models" "./models"
-COPY "${MORPHEUS_ROOT_HOST}/scripts" "./scripts"
-COPY "${MORPHEUS_ROOT_HOST}/*.md" "./"
-COPY "${MORPHEUS_ROOT_HOST}/LICENSE" "./"
+COPY "${COPY_FILES}" "./"
 
 RUN /opt/conda/bin/conda clean -afy && \
     # Ensure the conda-bld directory is indexed even if empty

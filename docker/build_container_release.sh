@@ -24,6 +24,30 @@ export DOCKER_IMAGE_NAME=${DOCKER_IMAGE_NAME:-"nvcr.io/nvidia/morpheus/morpheus"
 export DOCKER_IMAGE_TAG=${DOCKER_IMAGE_TAG:-"$(git describe --tags --abbrev=0)-runtime"}
 export DOCKER_TARGET=${DOCKER_TARGET:-"runtime"}
 
+# For the release container we copy several files into the container, in order to avoid including files not in the repo
+# we use git ls-files to get the list of files to copy
+pushd ${SCRIPT_DIR}/../ &> /dev/null
+
+_COPY_FILES=()
+_COPY_FILES+=$(git ls-files conda/environments/*.yaml)
+_COPY_FILES+=" "
+_COPY_FILES+=$(git ls-files docker)
+_COPY_FILES+=" "
+_COPY_FILES+=$(git ls-files docs)
+_COPY_FILES+=" "
+_COPY_FILES+=$(git ls-files examples)
+_COPY_FILES+=" "
+_COPY_FILES+=$(git ls-files models)
+_COPY_FILES+=" "
+_COPY_FILES+=$(git ls-files scripts)
+_COPY_FILES+=" "
+_COPY_FILES+=$(git ls-files *.md)
+_COPY_FILES+=" "
+_COPY_FILES+=("LICENSE")
+popd &> /dev/null
+
+export COPY_FILES=$(echo ${_COPY_FILES[@]} | tr '\n' ' ')
+
 popd &> /dev/null
 
 # Fetch data
