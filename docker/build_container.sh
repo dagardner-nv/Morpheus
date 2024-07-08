@@ -40,9 +40,6 @@ PYTHON_VER=${PYTHON_VER:-3.10}
 # Determine the relative path from $PWD to $MORPHEUS_ROOT
 MORPHEUS_ROOT_HOST=${MORPHEUS_ROOT_HOST:-"$(realpath --relative-to=${PWD} ${MORPHEUS_ROOT})"}
 
-# List of files to copy into the container
-COPY_FILES=${COPY_FILES:-""}
-
 # Build the docker arguments
 DOCKER_ARGS="-t ${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_TAG}"
 DOCKER_ARGS="${DOCKER_ARGS} --target ${DOCKER_TARGET}"
@@ -55,7 +52,6 @@ DOCKER_ARGS="${DOCKER_ARGS} --build-arg LINUX_VER=${LINUX_VER}"
 DOCKER_ARGS="${DOCKER_ARGS} --build-arg MORPHEUS_ROOT_HOST=${MORPHEUS_ROOT_HOST}"
 DOCKER_ARGS="${DOCKER_ARGS} --build-arg MORPHEUS_SUPPORT_DOCA=${MORPHEUS_SUPPORT_DOCA}"
 DOCKER_ARGS="${DOCKER_ARGS} --build-arg PYTHON_VER=${PYTHON_VER}"
-DOCKER_ARGS="${DOCKER_ARGS} --build-arg \"COPY_FILES=${COPY_FILES}\""
 DOCKER_ARGS="${DOCKER_ARGS} --network=host"
 
 # Last add any extra args (duplicates override earlier ones)
