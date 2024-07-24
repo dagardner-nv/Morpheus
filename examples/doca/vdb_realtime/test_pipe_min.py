@@ -60,8 +60,6 @@ def run_pipeline(nic_addr,
                  convert: bool,
                  buffer_size: int,
                  buffer_secs: int):
-    morpheus_root = os.environ.get('MORPHEUS_ROOT')
-
     # Enable the default logger
     configure_logging(log_level=log_level)
 
@@ -97,9 +95,7 @@ def run_pipeline(nic_addr,
                          delayed_start=True))
 
     if out_file is not None:
-        out_file_path = os.path.join(morpheus_root, ".tmp", out_file)
-        print(f"Writing to: {out_file_path}")
-        pipeline.add_stage(WriteToFileStage(config, filename=out_file_path, overwrite=True, flush=True))
+        pipeline.add_stage(WriteToFileStage(config, filename=out_file, overwrite=True, flush=True))
 
     # Build the pipeline here to see types in the vizualization
     pipeline.build()
