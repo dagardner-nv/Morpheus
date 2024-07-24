@@ -38,6 +38,10 @@ def get_data(input_glob: str) -> list[str]:
                 if not content:
                     break
 
+                # Remove end-of-line chars for readability, prepend block with the packet number
+                content_stripped = content.replace('\n', ' ')
+                content = f"{len(data)}: {content_stripped}"
+
                 data.append(content)
 
     return data
@@ -70,8 +74,7 @@ def send_data(data: list[str],
     if iface is not None:
         send_kwargs["iface"] = iface
 
-    for packet in packets:
-        send(packet, **send_kwargs)
+    send(packets, **send_kwargs)
 
 
 @click.command()
