@@ -33,11 +33,13 @@
 #include <doca_gpunetio.h>
 #include <doca_types.h>
 #include <glog/logging.h>
+#include <mrc/cuda/common.hpp>     // for MRC_CHECK_CUDA
 #include <mrc/core/utils.hpp>
 #include <mrc/runnable/context.hpp>
 #include <mrc/segment/builder.hpp>
 #include <mrc/segment/object.hpp>
 #include <pymrc/node.hpp>
+#include <rmm/cuda_stream_view.hpp>  // for cuda_stream_view
 #include <rxcpp/rx.hpp>
 
 #include <cstdint>
@@ -121,6 +123,9 @@ DocaSourceStage::subscriber_fn_t DocaSourceStage::build()
 
         // Dedicated CUDA stream for the receiver kernel
         cudaStreamCreateWithFlags(&rstream, cudaStreamNonBlocking);
+
+        stream_cpp = rmm::cuda_stream_view(rstream);
+
         mrc::Unwinder ensure_cleanup([rstream]() {
             // Ensure that the stream gets cleaned up even if we error
             cudaStreamDestroy(rstream);
@@ -189,14 +194,42 @@ DocaSourceStage::subscriber_fn_t DocaSourceStage::build()
                     if (pkt_ptr->packet_count_out > PACKETS_PER_BLOCK)
                         LOG(ERROR) << "Received " << pkt_ptr->packet_count_out << " pkts > max pkts "
                                    << PACKETS_PER_BLOCK;
+                    
+                    const auto header_byte_size = gather_sizes(pkt_ptr->packet_count_out, pkt_ptr->pkt_hdr_size, stream_cpp);
+                    const auto payload_byte_size = gather_sizes(pkt_ptr->packet_count_out, pkt_ptr->pkt_pld_size, stream_cpp);
+                    const auto packet_byte_size = header_byte_size + payload_byte_size;
+
+                    auto packet_buffer = std::make_unique<rmm::device_buffer>(packet_byte_size, stream_cpp);
+
+                    const auto sizes_size = pkt_ptr->packet_count_out * sizeof(uint32_t);
+                    auto header_sizes = std::make_unique<rmm::device_buffer>(sizes_size, stream_cpp);
+                    auto payload_sizes = std::make_unique<rmm::device_buffer>(sizes_size, stream_cpp);
+
+                    MRC_CHECK_CUDA(cudaMemcpyAsync(packet_buffer->data(),
+                                                   pkt_ptr->pkt_addr,
+                                                   packet_buffer->size(),
+                                                   cudaMemcpyDeviceToDevice,
+                                                   stream_cpp));
+
+                    MRC_CHECK_CUDA(cudaMemcpyAsync(header_sizes->data(),
+                                                   pkt_ptr->pkt_hdr_size,
+                                                   header_sizes->size(),
+                                                   cudaMemcpyDeviceToDevice,
+                                                   stream_cpp));
+
+                    MRC_CHECK_CUDA(cudaMemcpyAsync(payload_sizes->data(),
+                                                   pkt_ptr->pkt_pld_size,
+                                                   payload_sizes->size(),
+                                                   cudaMemcpyDeviceToDevice,
+                                                   stream_cpp));
+
+                    MRC_CHECK_CUDA(cudaStreamSynchronize(stream_cpp));
 
                     // Create RawPacketMessage with the burst of packets just received
                     auto meta = RawPacketMessage::create_from_cpp(pkt_ptr->packet_count_out,
-                                                                  MAX_PKT_SIZE,
-                                                                  pkt_ptr->pkt_addr,
-                                                                  pkt_ptr->pkt_hdr_size,
-                                                                  pkt_ptr->pkt_pld_size,
-                                                                  true,
+                                                                  std::move(packet_buffer),
+                                                                  std::move(header_sizes),
+                                                                  std::move(payload_sizes),
                                                                   queue_idx);
 
                     output.on_next(std::move(meta));
