@@ -44,40 +44,19 @@ uint32_t RawPacketMessage::get_max_size() const
     return m_max_size;
 }
 
-uintptr_t RawPacketMessage::get_pkt_addr_idx(uint32_t pkt_idx) const
+uint8_t* RawPacketMessage::get_pkt_addr_list() const
 {
-    if (pkt_idx > m_num || m_gpu_mem == true)
-        return 0;
-    return m_ptr_addr[pkt_idx];
-}
-
-uintptr_t RawPacketMessage::get_pkt_hdr_size_idx(uint32_t pkt_idx) const
-{
-    if (pkt_idx > m_num || m_gpu_mem == true)
-        return 0;
-    return m_ptr_hdr_size[pkt_idx];
-}
-
-uintptr_t RawPacketMessage::get_pkt_pld_size_idx(uint32_t pkt_idx) const
-{
-    if (pkt_idx > m_num || m_gpu_mem == true)
-        return 0;
-    return m_ptr_pld_size[pkt_idx];
-}
-
-uintptr_t* RawPacketMessage::get_pkt_addr_list() const
-{
-    return m_ptr_addr;
+    return static_cast<uint8_t*>(m_packet_data->data());
 }
 
 uint32_t* RawPacketMessage::get_pkt_hdr_size_list() const
 {
-    return m_ptr_hdr_size;
+    return static_cast<uint32_t*>(m_header_sizes->data());
 }
 
 uint32_t* RawPacketMessage::get_pkt_pld_size_list() const
 {
-    return m_ptr_pld_size;
+    return static_cast<uint32_t*>(m_payload_sizes->data());
 }
 
 uint32_t RawPacketMessage::get_queue_idx() const
@@ -85,36 +64,28 @@ uint32_t RawPacketMessage::get_queue_idx() const
     return m_queue_idx;
 }
 
-bool RawPacketMessage::is_gpu_mem() const
-{
-    return m_gpu_mem;
-}
-
 std::shared_ptr<RawPacketMessage> RawPacketMessage::create_from_cpp(uint32_t num,
                                                                     uint32_t max_size,
-                                                                    uintptr_t* ptr_addr,
-                                                                    uint32_t* ptr_hdr_size,
-                                                                    uint32_t* ptr_pld_size,
-                                                                    bool gpu_mem,
+                                                                    std::unique_ptr<rmm::device_buffer>&& packet_data,
+                                                                    std::unique_ptr<rmm::device_buffer>&& header_sizes,
+                                                                    std::unique_ptr<rmm::device_buffer>&& payload_sizes,
                                                                     uint16_t queue_idx)
 {
     return std::shared_ptr<RawPacketMessage>(
-        new RawPacketMessage(num, max_size, ptr_addr, ptr_hdr_size, ptr_pld_size, gpu_mem, queue_idx));
+        new RawPacketMessage(num, max_size, std::move(packet_data), std::move(header_sizes), std::move(payload_sizes), queue_idx));
 }
 
 RawPacketMessage::RawPacketMessage(uint32_t num_,
                                    uint32_t max_size_,
-                                   uintptr_t* ptr_addr_,
-                                   uint32_t* ptr_hdr_size_,
-                                   uint32_t* ptr_pld_size_,
-                                   bool gpu_mem_,
-                                   int queue_idx_) :
+                                   std::unique_ptr<rmm::device_buffer>&& packet_data,
+                                   std::unique_ptr<rmm::device_buffer>&& header_sizes,
+                                   std::unique_ptr<rmm::device_buffer>&& payload_sizes,
+                                   uint16_t queue_idx_) :
   m_num(num_),
   m_max_size(max_size_),
-  m_ptr_addr(ptr_addr_),
-  m_ptr_hdr_size(ptr_hdr_size_),
-  m_ptr_pld_size(ptr_pld_size_),
-  m_gpu_mem(gpu_mem_),
+  m_packet_data(std::move(packet_data)),
+  m_header_sizes(std::move(header_sizes)),
+  m_payload_sizes(std::move(payload_sizes)),
   m_queue_idx(queue_idx_)
 {}
 
