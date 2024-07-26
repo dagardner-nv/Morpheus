@@ -17,19 +17,11 @@
 
 #include "morpheus/messages/raw_packet.hpp"
 
-#include <pybind11/pytypes.h>
+#include <glog/logging.h> // for DCHECK
 
 #include <memory>
 
-// We're already including pybind11.h and don't need to include cast.
-// For some reason IWYU also thinks we need array for the `isinsance` call.
-// IWYU pragma: no_include <pybind11/cast.h>
-// IWYU pragma: no_include <array>
-
 namespace morpheus {
-
-namespace py = pybind11;
-using namespace py::literals;
 
 /****** Component public implementations *******************/
 /****** RawPacketMessage ****************************************/
@@ -37,6 +29,11 @@ using namespace py::literals;
 uint32_t RawPacketMessage::count() const
 {
     return m_num;
+}
+
+std::size_t RawPacketMessage::get_sizes_size() const
+{
+    return m_header_sizes->size();
 }
 
 uint8_t* RawPacketMessage::get_pkt_addr_list() const
@@ -79,6 +76,8 @@ RawPacketMessage::RawPacketMessage(uint32_t num_,
   m_header_sizes(std::move(header_sizes)),
   m_payload_sizes(std::move(payload_sizes)),
   m_queue_idx(queue_idx_)
-{}
+{
+    DCHECK(header_sizes->size() == payload_sizes->size());
+}
 
 }  // namespace morpheus

@@ -124,7 +124,7 @@ DocaSourceStage::subscriber_fn_t DocaSourceStage::build()
         // Dedicated CUDA stream for the receiver kernel
         cudaStreamCreateWithFlags(&rstream, cudaStreamNonBlocking);
 
-        stream_cpp = rmm::cuda_stream_view(rstream);
+        auto stream_cpp = rmm::cuda_stream_view(rstream);
 
         mrc::Unwinder ensure_cleanup([rstream]() {
             // Ensure that the stream gets cleaned up even if we error

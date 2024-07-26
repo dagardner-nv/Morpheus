@@ -41,6 +41,8 @@ class RawPacketMessage
      * @return uint32_t
      */
     uint32_t count() const;
+    
+    std::size_t get_sizes_size() const;
 
     /**
      * @brief Get the address of the packet list

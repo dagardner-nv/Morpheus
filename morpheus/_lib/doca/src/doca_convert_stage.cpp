@@ -195,10 +195,11 @@ void DocaConvertStage::on_raw_packet_message(sink_type_t raw_msg)
     auto pkt_pld_size_list = raw_msg->get_pkt_pld_size_list();
     auto queue_idx         = raw_msg->get_queue_idx();
 
+    // TODO the source knows this, just make it a message attr
     const auto payload_buff_size = doca::gather_sizes(packet_count, pkt_pld_size_list, m_stream_cpp);
 
     const auto header_buff_size = packet_count * sizeof(uint32_t);
-    const auto sizes_buff_size  = packet_count * sizeof(uint32_t);
+    const auto sizes_buff_size  = raw_msg->get_sizes_size();
 
     auto packet_buffer =
         doca::PacketDataBuffer(packet_count, header_buff_size, payload_buff_size, sizes_buff_size, m_stream_cpp);
@@ -219,6 +220,7 @@ void DocaConvertStage::on_raw_packet_message(sink_type_t raw_msg)
                         static_cast<uint32_t*>(packet_buffer.m_header_buffer->data()),
                         m_stream_cpp);
 
+    // TODO we should just take ownership of the buffer in the messafe
     MRC_CHECK_CUDA(cudaMemcpyAsync(static_cast<uint8_t*>(packet_buffer.m_payload_sizes_buffer->data()),
                                    pkt_pld_size_list,
                                    sizes_buff_size,
