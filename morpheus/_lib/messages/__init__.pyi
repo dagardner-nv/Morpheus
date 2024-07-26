@@ -328,16 +328,6 @@ class MutableTableCtxMgr():
     pass
 class RawPacketMessage():
     @property
-    def gpu_mem(self) -> bool:
-        """
-        :type: bool
-        """
-    @property
-    def max_size(self) -> int:
-        """
-        :type: int
-        """
-    @property
     def num(self) -> int:
         """
         :type: int

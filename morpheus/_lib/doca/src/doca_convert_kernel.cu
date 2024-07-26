@@ -40,7 +40,7 @@
 #include <memory>
 
 __global__ void _packet_gather_payload_kernel(int32_t packet_count,
-                                              uintptr_t* packets_buffer,
+                                              uint8_t* packets_buffer,
                                               uint32_t* header_sizes,
                                               uint32_t* payload_sizes,
                                               uint8_t* payload_chars_out,
@@ -63,7 +63,7 @@ __global__ void _packet_gather_payload_kernel(int32_t packet_count,
 }
 
 __global__ void _packet_gather_src_ip_kernel(int32_t packet_count,
-                                             uintptr_t* packets_buffer,
+                                             uint8_t* packets_buffer,
                                              uint32_t* header_sizes,
                                              uint32_t* payload_sizes,
                                              uint32_t* dst_buff)
@@ -117,7 +117,7 @@ rmm::device_buffer sizes_to_offsets(int32_t packet_count, uint32_t* sizes_buff, 
 }
 
 void gather_header(int32_t packet_count,
-                   uintptr_t* packets_buffer,
+                   uint8_t* packets_buffer,
                    uint32_t* header_sizes,
                    uint32_t* payload_sizes,
                    uint32_t* dst_buff,
@@ -129,7 +129,7 @@ void gather_header(int32_t packet_count,
 }
 
 void gather_payload(int32_t packet_count,
-                    uintptr_t* packets_buffer,
+                    uint8_t* packets_buffer,
                     uint32_t* header_sizes,
                     uint32_t* payload_sizes,
                     uint8_t* dst_buff,
