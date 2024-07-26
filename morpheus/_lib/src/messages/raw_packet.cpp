@@ -39,11 +39,6 @@ uint32_t RawPacketMessage::count() const
     return m_num;
 }
 
-uint32_t RawPacketMessage::get_max_size() const
-{
-    return m_max_size;
-}
-
 uint8_t* RawPacketMessage::get_pkt_addr_list() const
 {
     return static_cast<uint8_t*>(m_packet_data->data());
@@ -65,24 +60,21 @@ uint32_t RawPacketMessage::get_queue_idx() const
 }
 
 std::shared_ptr<RawPacketMessage> RawPacketMessage::create_from_cpp(uint32_t num,
-                                                                    uint32_t max_size,
                                                                     std::unique_ptr<rmm::device_buffer>&& packet_data,
                                                                     std::unique_ptr<rmm::device_buffer>&& header_sizes,
                                                                     std::unique_ptr<rmm::device_buffer>&& payload_sizes,
                                                                     uint16_t queue_idx)
 {
     return std::shared_ptr<RawPacketMessage>(
-        new RawPacketMessage(num, max_size, std::move(packet_data), std::move(header_sizes), std::move(payload_sizes), queue_idx));
+        new RawPacketMessage(num, std::move(packet_data), std::move(header_sizes), std::move(payload_sizes), queue_idx));
 }
 
 RawPacketMessage::RawPacketMessage(uint32_t num_,
-                                   uint32_t max_size_,
                                    std::unique_ptr<rmm::device_buffer>&& packet_data,
                                    std::unique_ptr<rmm::device_buffer>&& header_sizes,
                                    std::unique_ptr<rmm::device_buffer>&& payload_sizes,
                                    uint16_t queue_idx_) :
   m_num(num_),
-  m_max_size(max_size_),
   m_packet_data(std::move(packet_data)),
   m_header_sizes(std::move(header_sizes)),
   m_payload_sizes(std::move(payload_sizes)),

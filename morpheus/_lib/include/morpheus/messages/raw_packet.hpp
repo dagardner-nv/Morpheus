@@ -43,13 +43,6 @@ class RawPacketMessage
     uint32_t count() const;
 
     /**
-     * @brief Return max packet size in the message
-     *
-     * @return uint32_t
-     */
-    uint32_t get_max_size() const;
-
-    /**
      * @brief Get the address of the packet list
      *
      * @return uint8_t *
@@ -85,7 +78,6 @@ class RawPacketMessage
      * @return std::shared_ptr<RawPacketMessage>
      */
     static std::shared_ptr<RawPacketMessage> create_from_cpp(uint32_t num,
-                                                             uint32_t max_size,
                                                              std::unique_ptr<rmm::device_buffer>&& packet_data,
                                                              std::unique_ptr<rmm::device_buffer>&& header_sizes,
                                                              std::unique_ptr<rmm::device_buffer>&& payload_sizes,
@@ -93,14 +85,12 @@ class RawPacketMessage
 
   protected:
     RawPacketMessage(uint32_t num,
-                     uint32_t max_size,
                      std::unique_ptr<rmm::device_buffer>&& packet_data,
                      std::unique_ptr<rmm::device_buffer>&& header_sizes,
                      std::unique_ptr<rmm::device_buffer>&& payload_sizes,
                      uint16_t queue_idx);
 
     uint32_t m_num;
-    uint32_t m_max_size;
     std::unique_ptr<rmm::device_buffer> m_packet_data;
     std::unique_ptr<rmm::device_buffer> m_header_sizes;
     std::unique_ptr<rmm::device_buffer> m_payload_sizes;
