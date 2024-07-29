@@ -43,21 +43,24 @@ __global__ void _packet_gather_payload_kernel(int32_t packet_count,
                                               uint8_t* packets_buffer,
                                               uint32_t* header_sizes,
                                               uint32_t* payload_sizes,
-                                              uint8_t* payload_chars_out,
-                                              int32_t* dst_offsets)
+                                              int32_t* header_offsets,
+                                              int32_t* payload_offsets,
+                                              uint8_t* payload_chars_out)
 {
     int pkt_idx     = blockIdx.x * blockDim.x + threadIdx.x;
-    int byte_offset = blockIdx.y * blockDim.y + threadIdx.y;
+    int packet_byte_offset = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (pkt_idx < packet_count)
     {
         const uint32_t payload_size = payload_sizes[pkt_idx];
 
-        if (byte_offset < payload_size)
+        if (packet_byte_offset < payload_size)
         {
-            uint8_t* pkt_hdr_addr                       = (uint8_t*)(packets_buffer[pkt_idx] + header_sizes[pkt_idx]);
-            const int32_t dst_offset                    = dst_offsets[pkt_idx];
-            payload_chars_out[dst_offset + byte_offset] = pkt_hdr_addr[byte_offset];
+            const int32_t payload_offset = payload_offsets[pkt_idx];
+            const int32_t src_offset     = header_offsets[pkt_idx] + payload_offset;
+            uint8_t* pkt_hdr_addr        = packets_buffer + src_offset + header_sizes[pkt_idx];
+            
+            payload_chars_out[payload_offset + packet_byte_offset] = pkt_hdr_addr[packet_byte_offset];
         }
     }
 }
@@ -66,13 +69,16 @@ __global__ void _packet_gather_src_ip_kernel(int32_t packet_count,
                                              uint8_t* packets_buffer,
                                              uint32_t* header_sizes,
                                              uint32_t* payload_sizes,
+                                             int32_t* header_offsets,
+                                             int32_t* payload_offsets,
                                              uint32_t* dst_buff)
 {
     int pkt_idx = threadIdx.x;
 
     while (pkt_idx < packet_count)
     {
-        uint8_t* pkt_hdr_addr = (uint8_t*)(packets_buffer[pkt_idx]);
+        const int32_t src_offset     = header_offsets[pkt_idx] + payload_offsets[pkt_idx];
+        uint8_t* pkt_hdr_addr = packets_buffer + src_offset;
         dst_buff[pkt_idx] = ip_to_int32(((struct eth_ip*)pkt_hdr_addr)->l3_hdr.src_addr);
         pkt_idx += blockDim.x;
     }
@@ -124,8 +130,13 @@ void gather_header(int32_t packet_count,
                    rmm::cuda_stream_view stream,
                    rmm::mr::device_memory_resource* mr)
 {
+    auto header_offsets = sizes_to_offsets(packet_count, header_sizes, stream);
+    auto payload_offsets = sizes_to_offsets(packet_count, payload_sizes, stream);
     _packet_gather_src_ip_kernel<<<1, THREADS_PER_BLOCK, 0, stream>>>(
-        packet_count, packets_buffer, header_sizes, payload_sizes, dst_buff);
+        packet_count, packets_buffer, header_sizes, payload_sizes, 
+        static_cast<int32_t*>(header_offsets.data()), 
+        static_cast<int32_t*>(payload_offsets.data()),
+        dst_buff);
 }
 
 void gather_payload(int32_t packet_count,
@@ -136,11 +147,15 @@ void gather_payload(int32_t packet_count,
                     rmm::cuda_stream_view stream,
                     rmm::mr::device_memory_resource* mr)
 {
-    auto dst_offsets = sizes_to_offsets(packet_count, payload_sizes, stream);
+    auto header_offsets = sizes_to_offsets(packet_count, header_sizes, stream);
+    auto payload_offsets = sizes_to_offsets(packet_count, payload_sizes, stream);
     dim3 threadsPerBlock(32, 32);
     dim3 numBlocks((packet_count + threadsPerBlock.x - 1) / threadsPerBlock.x, (MAX_PKT_SIZE+threadsPerBlock.y-1) / threadsPerBlock.y);
     _packet_gather_payload_kernel<<<numBlocks, threadsPerBlock, 0, stream>>>(
-        packet_count, packets_buffer, header_sizes, payload_sizes, dst_buff, static_cast<int32_t*>(dst_offsets.data()));
+        packet_count, packets_buffer, header_sizes, payload_sizes,
+        static_cast<int32_t*>(header_offsets.data()), 
+        static_cast<int32_t*>(payload_offsets.data()),
+        dst_buff);
 }
 
 }  // namespace doca

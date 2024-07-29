@@ -43,6 +43,8 @@ class RawPacketMessage
      */
     uint32_t count() const;
     
+    std::size_t get_header_size() const;
+    std::size_t get_payload_size() const;
     std::size_t get_sizes_size() const;
 
     uint8_t* get_pkt_addr_list() const;
@@ -76,6 +78,8 @@ class RawPacketMessage
      * @return std::shared_ptr<RawPacketMessage>
      */
     static std::shared_ptr<RawPacketMessage> create_from_cpp(uint32_t num, 
+                                                             std::size_t num_header_bytes,
+                                                             std::size_t num_payload_bytes,
                                                              std::unique_ptr<rmm::device_buffer>&& packet_buffer,
                                                              std::unique_ptr<rmm::device_buffer>&& header_sizes,
                                                              std::unique_ptr<rmm::device_buffer>&& payload_sizes,
@@ -83,12 +87,16 @@ class RawPacketMessage
 
   protected:
     RawPacketMessage(uint32_t num,
+                     std::size_t num_header_bytes,
+                     std::size_t num_payload_bytes,
                      std::unique_ptr<rmm::device_buffer>&& packet_buffer,
                      std::unique_ptr<rmm::device_buffer>&& header_sizes,
                      std::unique_ptr<rmm::device_buffer>&& payload_sizes,
                      uint16_t queue_idx);
 
     uint32_t m_num;
+    std::size_t m_num_header_bytes;
+    std::size_t m_num_payload_bytes;
     std::unique_ptr<rmm::device_buffer> m_packet_buffer;
     std::unique_ptr<rmm::device_buffer> m_header_sizes;
     std::unique_ptr<rmm::device_buffer> m_payload_sizes;

@@ -106,6 +106,7 @@ DocaSourceStage::subscriber_fn_t DocaSourceStage::build()
         struct packets_info* pkt_ptr;
         int sem_idx[MAX_QUEUE] = {0};
         cudaStream_t rstream   = nullptr;
+        cudaStream_t msg_stream   = nullptr;
         int thread_idx         = mrc::runnable::Context::get_runtime_context().rank();
 
         // Add per queue
@@ -124,11 +125,16 @@ DocaSourceStage::subscriber_fn_t DocaSourceStage::build()
         // Dedicated CUDA stream for the receiver kernel
         cudaStreamCreateWithFlags(&rstream, cudaStreamNonBlocking);
 
-        auto stream_cpp = rmm::cuda_stream_view(rstream);
+        // CUDA stream for the outgoing messages
+        cudaStreamCreateWithFlags(&msg_stream, cudaStreamNonBlocking);
 
-        mrc::Unwinder ensure_cleanup([rstream]() {
+
+        auto stream_cpp = rmm::cuda_stream_view(msg_stream);
+
+        mrc::Unwinder ensure_cleanup([rstream, msg_stream]() {
             // Ensure that the stream gets cleaned up even if we error
             cudaStreamDestroy(rstream);
+            cudaStreamDestroy(msg_stream);
         });
 
         for (int queue_idx = 0; queue_idx < MAX_QUEUE; queue_idx++)
@@ -195,11 +201,20 @@ DocaSourceStage::subscriber_fn_t DocaSourceStage::build()
                         LOG(ERROR) << "Received " << pkt_ptr->packet_count_out << " pkts > max pkts "
                                    << PACKETS_PER_BLOCK;
                     
+                    std::cerr << "Source - 0\tpacket count= " <<  pkt_ptr->packet_count_out << std::endl << std::flush;
                     const auto header_byte_size = gather_sizes(pkt_ptr->packet_count_out, pkt_ptr->pkt_hdr_size, stream_cpp);
                     const auto payload_byte_size = gather_sizes(pkt_ptr->packet_count_out, pkt_ptr->pkt_pld_size, stream_cpp);
                     const auto packet_byte_size = header_byte_size + payload_byte_size;
 
+                    std::cerr << "Source - 1\tttl_size= " 
+                              << packet_byte_size 
+                              << "\theader size= " 
+                              << header_byte_size 
+                              << "\tpayload size="
+                              << payload_byte_size << std::endl << std::flush;
+
                     const auto sizes_size = pkt_ptr->packet_count_out * sizeof(uint32_t);
+                    std::cerr << "Source - 2\tsizes size= " << sizes_size << std::endl << std::flush;
                     auto header_sizes = std::make_unique<rmm::device_buffer>(sizes_size, stream_cpp);
                     auto payload_sizes = std::make_unique<rmm::device_buffer>(sizes_size, stream_cpp);
                     
@@ -222,23 +237,30 @@ DocaSourceStage::subscriber_fn_t DocaSourceStage::build()
                                                    /*stream_cpp*/));
 
                     
+                    std::cerr << "Source - 3" << std::endl << std::flush;
                     auto packet_buffer = copy_packet_data(pkt_ptr->packet_count_out,  
                                                         pkt_ptr->pkt_addr, 
                                                         static_cast<uint32_t*>(header_sizes->data()),
                                                         static_cast<uint32_t*>(payload_sizes->data()),
                                                         stream_cpp);
 
+                    std::cerr << "Source - 4\tdst_buff.size()= " << packet_buffer->size() << std::endl << std::flush;
+
                     //MRC_CHECK_CUDA(cudaStreamSynchronize(stream_cpp));
 
                     // Create RawPacketMessage with the burst of packets just received
                     auto raw_msg = RawPacketMessage::create_from_cpp(pkt_ptr->packet_count_out,
+                                                                     header_byte_size,
+                                                                     payload_byte_size,
                                                                      std::move(packet_buffer),
                                                                      std::move(header_sizes),
                                                                      std::move(payload_sizes),
                                                                      queue_idx);
 
+                    std::cerr << "Source - 5" << std::endl << std::flush;
                     output.on_next(std::move(raw_msg));
 
+                    std::cerr << "Source - 6" << std::endl << std::flush;
                     m_semaphore[queue_idx]->set_free(sem_idx[queue_idx]);
                     sem_idx[queue_idx] = (sem_idx[queue_idx] + 1) % MAX_SEM_X_QUEUE;
 #if ENABLE_TIMERS == 1

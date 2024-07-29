@@ -190,19 +190,29 @@ DocaConvertStage::subscribe_fn_t DocaConvertStage::build()
 void DocaConvertStage::on_raw_packet_message(sink_type_t raw_msg)
 {
     auto packet_count      = raw_msg->count();
-    const auto& pkt_addr_list     = raw_msg->get_pkt_addr_list();
+    auto pkt_addr_list     = raw_msg->get_pkt_addr_list();
     auto pkt_hdr_size_list = raw_msg->get_pkt_hdr_size_list();
     auto pkt_pld_size_list = raw_msg->get_pkt_pld_size_list();
     auto queue_idx         = raw_msg->get_queue_idx();
+    const auto payload_buff_size = raw_msg->get_payload_size();
 
-    // TODO the source knows this, just make it a message attr
-    const auto payload_buff_size = doca::gather_sizes(packet_count, pkt_pld_size_list, m_stream_cpp);
-
+    // since we are just extracting the ip4 source address, this buffer size is smaller than the input buffer
     const auto header_buff_size = packet_count * sizeof(uint32_t);
     const auto sizes_buff_size  = raw_msg->get_sizes_size();
 
+    std::cerr << "Convert = 0\tcount= " 
+              << packet_count 
+              << "\theader_size= "
+              << header_buff_size
+              << "\tpayload_size= "
+              << payload_buff_size
+              << "\tsizes size= "
+              << sizes_buff_size << std::endl << std::flush;
+
     auto packet_buffer =
         doca::PacketDataBuffer(packet_count, header_buff_size, payload_buff_size, sizes_buff_size, m_stream_cpp);
+
+    std::cerr << "Convert = 1" << std::endl << std::flush;
 
     // gather payload data, intentionally calling this first as it needs to perform an early sync operation
     doca::gather_payload(packet_count,
@@ -212,6 +222,8 @@ void DocaConvertStage::on_raw_packet_message(sink_type_t raw_msg)
                          static_cast<uint8_t*>(packet_buffer.m_payload_buffer->data()),
                          m_stream_cpp);
 
+    std::cerr << "Convert = 2" << std::endl << std::flush;
+
     // gather header data
     doca::gather_header(packet_count,
                         pkt_addr_list,
@@ -220,15 +232,21 @@ void DocaConvertStage::on_raw_packet_message(sink_type_t raw_msg)
                         static_cast<uint32_t*>(packet_buffer.m_header_buffer->data()),
                         m_stream_cpp);
 
+    std::cerr << "Convert = 3" << std::endl << std::flush;
+
     // TODO we should just take ownership of the buffer in the messafe
     MRC_CHECK_CUDA(cudaMemcpyAsync(static_cast<uint8_t*>(packet_buffer.m_payload_sizes_buffer->data()),
                                    pkt_pld_size_list,
                                    sizes_buff_size,
                                    cudaMemcpyDeviceToDevice,
                                    m_stream_cpp));
+
+    std::cerr << "Convert = 4" << std::endl << std::flush;
     cudaStreamSynchronize(m_stream_cpp);
 
+    std::cerr << "Convert = 5" << std::endl << std::flush;
     m_buffer_channel->await_write(std::move(packet_buffer));
+    std::cerr << "Convert = 6" << std::endl << std::flush;
 }
 
 void DocaConvertStage::buffer_reader(rxcpp::subscriber<source_type_t>& output)
@@ -246,21 +264,26 @@ void DocaConvertStage::buffer_reader(rxcpp::subscriber<source_type_t>& output)
         {
             doca::PacketDataBuffer packet_buffer;
             auto status = m_buffer_channel->await_read_until(packet_buffer, poll_end);
-
+            
             if (status == mrc::channel::Status::success)
             {
+                std::cerr << "Convert 7 - polled" << std::endl << std::flush;
                 ttl_packets += packet_buffer.m_num_packets;
                 ttl_header_bytes += packet_buffer.m_header_buffer->size();
                 ttl_payload_bytes += packet_buffer.m_payload_buffer->size();
                 ttl_payload_sizes_bytes += packet_buffer.m_payload_sizes_buffer->size();
                 packets.emplace_back(std::move(packet_buffer));
+                std::cerr << "Convert 8 - polled" << std::endl << std::flush;
             }
         }
 
         if (!packets.empty())
         {
+            std::cerr << "Convert = 9" << std::endl << std::flush;
             auto combined_data = concat_packet_buffers(
                 ttl_packets, ttl_header_bytes, ttl_payload_bytes, ttl_payload_sizes_bytes, std::move(packets));
+            
+            std::cerr << "Convert = 10" << std::endl << std::flush;
             send_buffered_data(output, std::move(combined_data));
             packets.clear();
         }

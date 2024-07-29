@@ -191,6 +191,29 @@ __global__ void _packet_receive_kernel(
 #endif
 }
 
+__global__ void _copy_packet_data_kernel(int32_t packet_count,
+                                         uintptr_t* packets_buffer,
+                                         uint32_t* header_sizes,
+                                         uint32_t* payload_sizes,
+                                         uint8_t* dst_buffer,
+                                         uint32_t* dst_offsets)
+{
+    int pkt_idx     = blockIdx.x * blockDim.x + threadIdx.x;
+    int byte_offset = blockIdx.y * blockDim.y + threadIdx.y;
+
+    if (pkt_idx < packet_count)
+    {
+        const uint32_t packet_size = header_sizes[pkt_idx] + payload_sizes[pkt_idx];
+
+        if (byte_offset < packet_size)
+        {
+            uint8_t* pkt_addr                    = (uint8_t*)(packets_buffer[pkt_idx]);
+            const uint32_t dst_offset             = dst_offsets[pkt_idx];
+            dst_buffer[dst_offset + byte_offset] = pkt_addr[byte_offset];
+        }
+    }
+}
+
 
 namespace morpheus {
 namespace doca {
@@ -222,32 +245,32 @@ std::unique_ptr<rmm::device_buffer> copy_packet_data(int32_t packet_count,
                                                      uint32_t* payload_sizes,
                                                      rmm::cuda_stream_view stream)
 {
+    rmm::device_buffer offset_buffer((packet_count+1) * sizeof(uint32_t), stream);
+
     auto header_sizes_tensor = matx::make_tensor<uint32_t>(header_sizes, {packet_count});
     auto payload_sizes_tensor = matx::make_tensor<uint32_t>(payload_sizes, {packet_count});
     auto sizes_tensor = matx::make_tensor<uint32_t>({packet_count});
     auto bytes_tensor = matx::make_tensor<uint32_t>({1});
 
+    auto cum_tensor   = matx::make_tensor<uint32_t>({packet_count});
+    auto zero_tensor = matx::make_tensor<uint32_t>({1});
+    zero_tensor.SetVals({0});
+
+    auto offsets_tensor = matx::make_tensor<uint32_t>(static_cast<uint32_t*>(offset_buffer.data()), {packet_count+1});
+
     (sizes_tensor = header_sizes_tensor + payload_sizes_tensor).run(stream.value());
     (bytes_tensor = matx::sum(sizes_tensor)).run(stream.value());
+    (cum_tensor = matx::cumsum(sizes_tensor)).run(stream.value());
+    (offsets_tensor = matx::concat(0, zero_tensor, cum_tensor)).run(stream.value());
     cudaStreamSynchronize(stream);
     
     auto dst_packet_data = std::make_unique<rmm::device_buffer>(bytes_tensor(0), stream);
 
-    int32_t current_offset = 0;
-    for (int32_t pkt_idx=0; pkt_idx < packet_count; ++pkt_idx)
-    {
-        const auto byte_size = static_cast<int32_t>(sizes_tensor(pkt_idx));
-
-        auto src_tensor = matx::make_tensor<uint8_t>((uint8_t*)(src_packet_data+pkt_idx), {byte_size});
-
-        auto out_dev_ptr = static_cast<uint8_t*>(dst_packet_data->data()) + current_offset;
-        auto out_tensor = matx::make_tensor<uint8_t>(out_dev_ptr, {byte_size});
-        
-        (out_tensor = src_tensor).run(stream.value());
-
-        current_offset += byte_size;
-    }
-
+    dim3 threadsPerBlock(32, 32);
+    dim3 numBlocks((packet_count + threadsPerBlock.x - 1) / threadsPerBlock.x, (MAX_PKT_SIZE+threadsPerBlock.y-1) / threadsPerBlock.y);
+    _copy_packet_data_kernel<<<numBlocks, threadsPerBlock, 0, stream>>>(
+        packet_count, src_packet_data, header_sizes, payload_sizes, static_cast<uint8_t*>(dst_packet_data->data()), static_cast<uint32_t*>(offset_buffer.data()));
+    
     cudaStreamSynchronize(stream);
 
     return dst_packet_data;

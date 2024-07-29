@@ -31,6 +31,16 @@ uint32_t RawPacketMessage::count() const
     return m_num;
 }
 
+std::size_t RawPacketMessage::get_header_size() const
+{
+    return m_num_header_bytes;
+}
+
+std::size_t RawPacketMessage::get_payload_size() const
+{
+    return m_num_payload_bytes;
+}
+
 std::size_t RawPacketMessage::get_sizes_size() const
 {
     return m_header_sizes->size();
@@ -57,21 +67,27 @@ uint32_t RawPacketMessage::get_queue_idx() const
 }
 
 std::shared_ptr<RawPacketMessage> RawPacketMessage::create_from_cpp(uint32_t num,
+                     std::size_t num_header_bytes,
+                     std::size_t num_payload_bytes,
                                                                     std::unique_ptr<rmm::device_buffer>&& packet_buffer,
                                                                     std::unique_ptr<rmm::device_buffer>&& header_sizes,
                                                                     std::unique_ptr<rmm::device_buffer>&& payload_sizes,
                                                                     uint16_t queue_idx)
 {
     return std::shared_ptr<RawPacketMessage>(
-        new RawPacketMessage(num, std::move(packet_buffer), std::move(header_sizes), std::move(payload_sizes), queue_idx));
+        new RawPacketMessage(num, num_header_bytes, num_payload_bytes, std::move(packet_buffer), std::move(header_sizes), std::move(payload_sizes), queue_idx));
 }
 
 RawPacketMessage::RawPacketMessage(uint32_t num_,
+                     std::size_t num_header_bytes,
+                     std::size_t num_payload_bytes,
                                    std::unique_ptr<rmm::device_buffer>&& packet_buffer,
                                    std::unique_ptr<rmm::device_buffer>&& header_sizes,
                                    std::unique_ptr<rmm::device_buffer>&& payload_sizes,
                                    uint16_t queue_idx_) :
   m_num(num_),
+  m_num_header_bytes(num_header_bytes),
+  m_num_payload_bytes(num_payload_bytes),
   m_packet_buffer(std::move(packet_buffer)),
   m_header_sizes(std::move(header_sizes)),
   m_payload_sizes(std::move(payload_sizes)),
@@ -79,6 +95,7 @@ RawPacketMessage::RawPacketMessage(uint32_t num_,
 {
     DCHECK(m_header_sizes->size() == m_payload_sizes->size());
     DCHECK(m_num * sizeof(uint32_t) == m_header_sizes->size());
+    DCHECK(m_num_header_bytes + num_payload_bytes == m_packet_buffer->size());
 }
 
 }  // namespace morpheus
