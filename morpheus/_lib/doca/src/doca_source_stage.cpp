@@ -199,40 +199,45 @@ DocaSourceStage::subscriber_fn_t DocaSourceStage::build()
                     const auto payload_byte_size = gather_sizes(pkt_ptr->packet_count_out, pkt_ptr->pkt_pld_size, stream_cpp);
                     const auto packet_byte_size = header_byte_size + payload_byte_size;
 
-                    auto packet_buffer = std::make_unique<rmm::device_buffer>(packet_byte_size, stream_cpp);
-
                     const auto sizes_size = pkt_ptr->packet_count_out * sizeof(uint32_t);
                     auto header_sizes = std::make_unique<rmm::device_buffer>(sizes_size, stream_cpp);
                     auto payload_sizes = std::make_unique<rmm::device_buffer>(sizes_size, stream_cpp);
+                    
+                    // MRC_CHECK_CUDA(cudaMemcpy(packet_buffer->data(),
+                    //                                pkt_ptr->pkt_addr,
+                    //                                packet_buffer->size(),
+                    //                                cudaMemcpyDeviceToDevice
+                    //                                /*stream_cpp*/));
 
-                    MRC_CHECK_CUDA(cudaMemcpyAsync(packet_buffer->data(),
-                                                   pkt_ptr->pkt_addr,
-                                                   packet_buffer->size(),
-                                                   cudaMemcpyDeviceToDevice,
-                                                   stream_cpp));
-
-                    MRC_CHECK_CUDA(cudaMemcpyAsync(header_sizes->data(),
+                    MRC_CHECK_CUDA(cudaMemcpy(header_sizes->data(),
                                                    pkt_ptr->pkt_hdr_size,
                                                    header_sizes->size(),
-                                                   cudaMemcpyDeviceToDevice,
-                                                   stream_cpp));
+                                                   cudaMemcpyDeviceToDevice
+                                                   /*stream_cpp*/));
 
-                    MRC_CHECK_CUDA(cudaMemcpyAsync(payload_sizes->data(),
+                    MRC_CHECK_CUDA(cudaMemcpy(payload_sizes->data(),
                                                    pkt_ptr->pkt_pld_size,
                                                    payload_sizes->size(),
-                                                   cudaMemcpyDeviceToDevice,
-                                                   stream_cpp));
+                                                   cudaMemcpyDeviceToDevice
+                                                   /*stream_cpp*/));
 
-                    MRC_CHECK_CUDA(cudaStreamSynchronize(stream_cpp));
+                    
+                    auto packet_buffer = copy_packet_data(pkt_ptr->packet_count_out,  
+                                                        pkt_ptr->pkt_addr, 
+                                                        static_cast<uint32_t*>(header_sizes->data()),
+                                                        static_cast<uint32_t*>(payload_sizes->data()),
+                                                        stream_cpp);
+
+                    //MRC_CHECK_CUDA(cudaStreamSynchronize(stream_cpp));
 
                     // Create RawPacketMessage with the burst of packets just received
-                    auto meta = RawPacketMessage::create_from_cpp(pkt_ptr->packet_count_out,
-                                                                  std::move(packet_buffer),
-                                                                  std::move(header_sizes),
-                                                                  std::move(payload_sizes),
-                                                                  queue_idx);
+                    auto raw_msg = RawPacketMessage::create_from_cpp(pkt_ptr->packet_count_out,
+                                                                     std::move(packet_buffer),
+                                                                     std::move(header_sizes),
+                                                                     std::move(payload_sizes),
+                                                                     queue_idx);
 
-                    output.on_next(std::move(meta));
+                    output.on_next(std::move(raw_msg));
 
                     m_semaphore[queue_idx]->set_free(sem_idx[queue_idx]);
                     sem_idx[queue_idx] = (sem_idx[queue_idx] + 1) % MAX_SEM_X_QUEUE;

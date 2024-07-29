@@ -21,6 +21,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 namespace morpheus {
 
@@ -44,11 +45,6 @@ class RawPacketMessage
     
     std::size_t get_sizes_size() const;
 
-    /**
-     * @brief Get the address of the packet list
-     *
-     * @return uint8_t *
-     */
     uint8_t* get_pkt_addr_list() const;
 
     /**
@@ -79,21 +75,21 @@ class RawPacketMessage
      * @param index_col_count
      * @return std::shared_ptr<RawPacketMessage>
      */
-    static std::shared_ptr<RawPacketMessage> create_from_cpp(uint32_t num,
-                                                             std::unique_ptr<rmm::device_buffer>&& packet_data,
+    static std::shared_ptr<RawPacketMessage> create_from_cpp(uint32_t num, 
+                                                             std::unique_ptr<rmm::device_buffer>&& packet_buffer,
                                                              std::unique_ptr<rmm::device_buffer>&& header_sizes,
                                                              std::unique_ptr<rmm::device_buffer>&& payload_sizes,
                                                              uint16_t queue_idx = 0xFFFF);
 
   protected:
     RawPacketMessage(uint32_t num,
-                     std::unique_ptr<rmm::device_buffer>&& packet_data,
+                     std::unique_ptr<rmm::device_buffer>&& packet_buffer,
                      std::unique_ptr<rmm::device_buffer>&& header_sizes,
                      std::unique_ptr<rmm::device_buffer>&& payload_sizes,
                      uint16_t queue_idx);
 
     uint32_t m_num;
-    std::unique_ptr<rmm::device_buffer> m_packet_data;
+    std::unique_ptr<rmm::device_buffer> m_packet_buffer;
     std::unique_ptr<rmm::device_buffer> m_header_sizes;
     std::unique_ptr<rmm::device_buffer> m_payload_sizes;
     uint16_t m_queue_idx;

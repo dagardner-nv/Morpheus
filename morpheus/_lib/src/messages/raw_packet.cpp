@@ -38,7 +38,7 @@ std::size_t RawPacketMessage::get_sizes_size() const
 
 uint8_t* RawPacketMessage::get_pkt_addr_list() const
 {
-    return static_cast<uint8_t*>(m_packet_data->data());
+    return static_cast<uint8_t*>(m_packet_buffer->data());
 }
 
 uint32_t* RawPacketMessage::get_pkt_hdr_size_list() const
@@ -57,27 +57,28 @@ uint32_t RawPacketMessage::get_queue_idx() const
 }
 
 std::shared_ptr<RawPacketMessage> RawPacketMessage::create_from_cpp(uint32_t num,
-                                                                    std::unique_ptr<rmm::device_buffer>&& packet_data,
+                                                                    std::unique_ptr<rmm::device_buffer>&& packet_buffer,
                                                                     std::unique_ptr<rmm::device_buffer>&& header_sizes,
                                                                     std::unique_ptr<rmm::device_buffer>&& payload_sizes,
                                                                     uint16_t queue_idx)
 {
     return std::shared_ptr<RawPacketMessage>(
-        new RawPacketMessage(num, std::move(packet_data), std::move(header_sizes), std::move(payload_sizes), queue_idx));
+        new RawPacketMessage(num, std::move(packet_buffer), std::move(header_sizes), std::move(payload_sizes), queue_idx));
 }
 
 RawPacketMessage::RawPacketMessage(uint32_t num_,
-                                   std::unique_ptr<rmm::device_buffer>&& packet_data,
+                                   std::unique_ptr<rmm::device_buffer>&& packet_buffer,
                                    std::unique_ptr<rmm::device_buffer>&& header_sizes,
                                    std::unique_ptr<rmm::device_buffer>&& payload_sizes,
                                    uint16_t queue_idx_) :
   m_num(num_),
-  m_packet_data(std::move(packet_data)),
+  m_packet_buffer(std::move(packet_buffer)),
   m_header_sizes(std::move(header_sizes)),
   m_payload_sizes(std::move(payload_sizes)),
   m_queue_idx(queue_idx_)
 {
-    DCHECK(header_sizes->size() == payload_sizes->size());
+    DCHECK(m_header_sizes->size() == m_payload_sizes->size());
+    DCHECK(m_num * sizeof(uint32_t) == m_header_sizes->size());
 }
 
 }  // namespace morpheus

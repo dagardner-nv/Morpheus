@@ -33,6 +33,7 @@
 #include <doca_gpunetio_dev_buf.cuh>
 #include <doca_gpunetio_dev_eth_rxq.cuh>
 #include <doca_gpunetio_dev_sem.cuh>
+#include <matx.h>
 #include <rmm/exec_policy.hpp>
 #include <rte_ether.h>
 #include <rte_ip.h>
@@ -190,6 +191,7 @@ __global__ void _packet_receive_kernel(
 #endif
 }
 
+
 namespace morpheus {
 namespace doca {
 
@@ -212,6 +214,43 @@ int packet_receive_kernel(doca_gpu_eth_rxq* rxq_0, doca_gpu_eth_rxq* rxq_1,
 	}
 
     return 0;
+}
+
+std::unique_ptr<rmm::device_buffer> copy_packet_data(int32_t packet_count, 
+                                                     uintptr_t* src_packet_data, 
+                                                     uint32_t* header_sizes, 
+                                                     uint32_t* payload_sizes,
+                                                     rmm::cuda_stream_view stream)
+{
+    auto header_sizes_tensor = matx::make_tensor<uint32_t>(header_sizes, {packet_count});
+    auto payload_sizes_tensor = matx::make_tensor<uint32_t>(payload_sizes, {packet_count});
+    auto sizes_tensor = matx::make_tensor<uint32_t>({packet_count});
+    auto bytes_tensor = matx::make_tensor<uint32_t>({1});
+
+    (sizes_tensor = header_sizes_tensor + payload_sizes_tensor).run(stream.value());
+    (bytes_tensor = matx::sum(sizes_tensor)).run(stream.value());
+    cudaStreamSynchronize(stream);
+    
+    auto dst_packet_data = std::make_unique<rmm::device_buffer>(bytes_tensor(0), stream);
+
+    int32_t current_offset = 0;
+    for (int32_t pkt_idx=0; pkt_idx < packet_count; ++pkt_idx)
+    {
+        const auto byte_size = static_cast<int32_t>(sizes_tensor(pkt_idx));
+
+        auto src_tensor = matx::make_tensor<uint8_t>((uint8_t*)(src_packet_data+pkt_idx), {byte_size});
+
+        auto out_dev_ptr = static_cast<uint8_t*>(dst_packet_data->data()) + current_offset;
+        auto out_tensor = matx::make_tensor<uint8_t>(out_dev_ptr, {byte_size});
+        
+        (out_tensor = src_tensor).run(stream.value());
+
+        current_offset += byte_size;
+    }
+
+    cudaStreamSynchronize(stream);
+
+    return dst_packet_data;
 }
 
 } //doca

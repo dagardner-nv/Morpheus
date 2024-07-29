@@ -190,7 +190,7 @@ DocaConvertStage::subscribe_fn_t DocaConvertStage::build()
 void DocaConvertStage::on_raw_packet_message(sink_type_t raw_msg)
 {
     auto packet_count      = raw_msg->count();
-    auto pkt_addr_list     = raw_msg->get_pkt_addr_list();
+    const auto& pkt_addr_list     = raw_msg->get_pkt_addr_list();
     auto pkt_hdr_size_list = raw_msg->get_pkt_hdr_size_list();
     auto pkt_pld_size_list = raw_msg->get_pkt_pld_size_list();
     auto queue_idx         = raw_msg->get_queue_idx();
