@@ -106,7 +106,6 @@ DocaSourceStage::subscriber_fn_t DocaSourceStage::build()
         struct packets_info* pkt_ptr;
         int sem_idx[MAX_QUEUE] = {0};
         cudaStream_t rstream   = nullptr;
-        cudaStream_t msg_stream   = nullptr;
         int thread_idx         = mrc::runnable::Context::get_runtime_context().rank();
 
         // Add per queue
@@ -125,16 +124,11 @@ DocaSourceStage::subscriber_fn_t DocaSourceStage::build()
         // Dedicated CUDA stream for the receiver kernel
         cudaStreamCreateWithFlags(&rstream, cudaStreamNonBlocking);
 
-        // CUDA stream for the outgoing messages
-        cudaStreamCreateWithFlags(&msg_stream, cudaStreamNonBlocking);
+        auto stream_cpp = rmm::cuda_stream_view(rstream);
 
-
-        auto stream_cpp = rmm::cuda_stream_view(msg_stream);
-
-        mrc::Unwinder ensure_cleanup([rstream, msg_stream]() {
+        mrc::Unwinder ensure_cleanup([rstream]() {
             // Ensure that the stream gets cleaned up even if we error
             cudaStreamDestroy(rstream);
-            cudaStreamDestroy(msg_stream);
         });
 
         for (int queue_idx = 0; queue_idx < MAX_QUEUE; queue_idx++)
@@ -209,24 +203,24 @@ DocaSourceStage::subscriber_fn_t DocaSourceStage::build()
                     auto header_sizes = std::make_unique<rmm::device_buffer>(sizes_size, stream_cpp);
                     auto payload_sizes = std::make_unique<rmm::device_buffer>(sizes_size, stream_cpp);
                     
-                    MRC_CHECK_CUDA(cudaMemcpy(header_sizes->data(),
+                    MRC_CHECK_CUDA(cudaMemcpyAsync(header_sizes->data(),
                                                    pkt_ptr->pkt_hdr_size,
                                                    header_sizes->size(),
-                                                   cudaMemcpyDeviceToDevice
-                                                   /*stream_cpp*/));
+                                                   cudaMemcpyDeviceToDevice,
+                                                   stream_cpp));
 
-                    MRC_CHECK_CUDA(cudaMemcpy(payload_sizes->data(),
+                    MRC_CHECK_CUDA(cudaMemcpyAsync(payload_sizes->data(),
                                                    pkt_ptr->pkt_pld_size,
                                                    payload_sizes->size(),
-                                                   cudaMemcpyDeviceToDevice
-                                                   /*stream_cpp*/));
+                                                   cudaMemcpyDeviceToDevice,
+                                                   stream_cpp));
 
-                    
+                    // copy_packet_data will perform a sync
                     auto packet_buffer = copy_packet_data(pkt_ptr->packet_count_out,  
-                                                        pkt_ptr->pkt_addr, 
-                                                        static_cast<uint32_t*>(header_sizes->data()),
-                                                        static_cast<uint32_t*>(payload_sizes->data()),
-                                                        stream_cpp);
+                                                          pkt_ptr->pkt_addr, 
+                                                          pkt_ptr->pkt_hdr_size,
+                                                          pkt_ptr->pkt_pld_size,
+                                                          stream_cpp);
 
                     // Create RawPacketMessage with the burst of packets just received
                     auto raw_msg = RawPacketMessage::create_from_cpp(pkt_ptr->packet_count_out,

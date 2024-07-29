@@ -34,6 +34,7 @@
 #include <doca_gpunetio_dev_eth_rxq.cuh>
 #include <doca_gpunetio_dev_sem.cuh>
 #include <matx.h>
+#include <mrc/cuda/common.hpp>     // for MRC_CHECK_CUDA
 #include <rmm/exec_policy.hpp>
 #include <rte_ether.h>
 #include <rte_ip.h>
@@ -262,7 +263,7 @@ std::unique_ptr<rmm::device_buffer> copy_packet_data(int32_t packet_count,
     (bytes_tensor = matx::sum(sizes_tensor)).run(stream.value());
     (cum_tensor = matx::cumsum(sizes_tensor)).run(stream.value());
     (offsets_tensor = matx::concat(0, zero_tensor, cum_tensor)).run(stream.value());
-    cudaStreamSynchronize(stream);
+    MRC_CHECK_CUDA(cudaStreamSynchronize(stream));
     
     auto dst_packet_data = std::make_unique<rmm::device_buffer>(bytes_tensor(0), stream);
 
@@ -271,7 +272,7 @@ std::unique_ptr<rmm::device_buffer> copy_packet_data(int32_t packet_count,
     _copy_packet_data_kernel<<<numBlocks, threadsPerBlock, 0, stream>>>(
         packet_count, src_packet_data, header_sizes, payload_sizes, static_cast<uint8_t*>(dst_packet_data->data()), static_cast<uint32_t*>(offset_buffer.data()));
     
-    cudaStreamSynchronize(stream);
+    MRC_CHECK_CUDA(cudaStreamSynchronize(stream));
 
     return dst_packet_data;
 }
