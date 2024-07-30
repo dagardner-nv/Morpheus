@@ -276,7 +276,7 @@ copy_packet_data(int32_t packet_count,
     auto dst_payload_buffer = std::make_unique<rmm::device_buffer>(payload_bytes_tensor(0), stream);
 
     dim3 threadsPerBlock(32, 32);
-    dim3 numBlocks((packet_count + threadsPerBlock.x - 1) / threadsPerBlock.x, (MAX_PKT_SIZE+threadsPerBlock.y-1) / threadsPerBlock.y);
+    dim3 numBlocks((packet_count + threadsPerBlock.x - 1) / threadsPerBlock.x, (MAX_PKT_SIZE + threadsPerBlock.y- 1) / threadsPerBlock.y);
     _copy_packet_data_kernel<<<numBlocks, threadsPerBlock, 0, stream>>>(
         packet_count, src_packet_data, header_sizes, payload_sizes, header_offsets, payload_offsets,
         static_cast<uint8_t*>(dst_header_buffer->data()),
