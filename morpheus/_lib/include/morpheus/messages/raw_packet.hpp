@@ -47,22 +47,6 @@ class RawPacketMessage
     std::size_t get_payload_size() const;
     std::size_t get_sizes_size() const;
 
-    uint8_t* get_pkt_addr_list() const;
-
-    /**
-     * @brief Get the header size of the packet list
-     *
-     * @return uintptr_t *
-     */
-    uint32_t* get_pkt_hdr_size_list() const;
-
-    /**
-     * @brief Get the payload size of the packet list
-     *
-     * @return uintptr_t *
-     */
-    uint32_t* get_pkt_pld_size_list() const;
-
     /**
      * @brief Get the queue index of the packet list
      *
@@ -78,28 +62,34 @@ class RawPacketMessage
      * @return std::shared_ptr<RawPacketMessage>
      */
     static std::shared_ptr<RawPacketMessage> create_from_cpp(uint32_t num, 
-                                                             std::size_t num_header_bytes,
-                                                             std::size_t num_payload_bytes,
-                                                             std::unique_ptr<rmm::device_buffer>&& packet_buffer,
                                                              std::unique_ptr<rmm::device_buffer>&& header_sizes,
+                                                             std::unique_ptr<rmm::device_buffer>&& header_offsets,
+                                                             std::unique_ptr<rmm::device_buffer>&& header_buffer,
                                                              std::unique_ptr<rmm::device_buffer>&& payload_sizes,
+                                                             std::unique_ptr<rmm::device_buffer>&& payload_offsets,
+                                                             std::unique_ptr<rmm::device_buffer>&& payload_buffer,
                                                              uint16_t queue_idx = 0xFFFF);
+
+    std::unique_ptr<rmm::device_buffer> m_header_sizes;
+    std::unique_ptr<rmm::device_buffer> m_header_offsets;
+    std::unique_ptr<rmm::device_buffer> m_header_buffer;
+    
+    std::unique_ptr<rmm::device_buffer> m_payload_sizes;
+    std::unique_ptr<rmm::device_buffer> m_payload_offsets;
+    std::unique_ptr<rmm::device_buffer> m_payload_buffer;
 
   protected:
     RawPacketMessage(uint32_t num,
-                     std::size_t num_header_bytes,
-                     std::size_t num_payload_bytes,
-                     std::unique_ptr<rmm::device_buffer>&& packet_buffer,
                      std::unique_ptr<rmm::device_buffer>&& header_sizes,
+                     std::unique_ptr<rmm::device_buffer>&& header_offsets,
+                     std::unique_ptr<rmm::device_buffer>&& header_buffer,
                      std::unique_ptr<rmm::device_buffer>&& payload_sizes,
+                     std::unique_ptr<rmm::device_buffer>&& payload_offsets,
+                     std::unique_ptr<rmm::device_buffer>&& payload_buffer,
                      uint16_t queue_idx);
 
     uint32_t m_num;
-    std::size_t m_num_header_bytes;
-    std::size_t m_num_payload_bytes;
-    std::unique_ptr<rmm::device_buffer> m_packet_buffer;
-    std::unique_ptr<rmm::device_buffer> m_header_sizes;
-    std::unique_ptr<rmm::device_buffer> m_payload_sizes;
+
     uint16_t m_queue_idx;
 };
 

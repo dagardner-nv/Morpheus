@@ -32,11 +32,14 @@ namespace morpheus::doca {
 
 uint32_t gather_sizes(int32_t packet_count, uint32_t* size_list, rmm::cuda_stream_view stream);
 
-std::unique_ptr<rmm::device_buffer> copy_packet_data(int32_t packet_count,
-                                                     uintptr_t* src_packet_data,
-                                                     uint32_t* header_sizes,
-                                                     uint32_t* payload_sizes,
-                                                     rmm::cuda_stream_view stream);
+std::pair<std::unique_ptr<rmm::device_buffer>, std::unique_ptr<rmm::device_buffer>> 
+copy_packet_data(int32_t packet_count,
+                 uintptr_t* src_packet_data,
+                 uint32_t* header_sizes,
+                 uint32_t* payload_sizes,
+                 int32_t* header_offsets,
+                 int32_t* payload_offsets,
+                 rmm::cuda_stream_view stream);
 
 void gather_payload(int32_t packet_count, // TODO not needed
                     uint8_t* packets_buffer,
@@ -47,9 +50,8 @@ void gather_payload(int32_t packet_count, // TODO not needed
                     rmm::mr::device_memory_resource* mr = rmm::mr::get_current_device_resource());
 
 void gather_header(int32_t packet_count, // TODO not needed
-                   uint8_t* packets_buffer,
-                   uint32_t* header_sizes,
-                   uint32_t* payload_sizes,
+                   uint8_t* src_buffer,
+                   int32_t* header_offsets,
                    uint32_t* dst_buff,
                    rmm::cuda_stream_view stream,
                    rmm::mr::device_memory_resource* mr = rmm::mr::get_current_device_resource());

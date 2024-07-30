@@ -196,7 +196,15 @@ DocaSourceStage::subscriber_fn_t DocaSourceStage::build()
                                    << PACKETS_PER_BLOCK;
                     
                     const auto header_byte_size = gather_sizes(pkt_ptr->packet_count_out, pkt_ptr->pkt_hdr_size, stream_cpp);
+                    auto header_offsets = std::make_unique<rmm::device_buffer>(
+                        std::move(sizes_to_offsets(pkt_ptr->packet_count_out, pkt_ptr->pkt_hdr_size, stream_cpp))
+                    );
+
                     const auto payload_byte_size = gather_sizes(pkt_ptr->packet_count_out, pkt_ptr->pkt_pld_size, stream_cpp);
+                    auto payload_offsets = std::make_unique<rmm::device_buffer>(
+                        std::move(sizes_to_offsets(pkt_ptr->packet_count_out, pkt_ptr->pkt_pld_size, stream_cpp))
+                    );
+
                     const auto packet_byte_size = header_byte_size + payload_byte_size;
 
                     const auto sizes_size = pkt_ptr->packet_count_out * sizeof(uint32_t);
@@ -216,19 +224,22 @@ DocaSourceStage::subscriber_fn_t DocaSourceStage::build()
                                                    stream_cpp));
 
                     // copy_packet_data will perform a sync
-                    auto packet_buffer = copy_packet_data(pkt_ptr->packet_count_out,  
+                    auto [header_buffer, payload_buffer] = copy_packet_data(pkt_ptr->packet_count_out,  
                                                           pkt_ptr->pkt_addr, 
                                                           pkt_ptr->pkt_hdr_size,
                                                           pkt_ptr->pkt_pld_size,
+                                                          static_cast<int32_t*>(header_offsets->data()),
+                                                          static_cast<int32_t*>(payload_offsets->data()),
                                                           stream_cpp);
 
                     // Create RawPacketMessage with the burst of packets just received
                     auto raw_msg = RawPacketMessage::create_from_cpp(pkt_ptr->packet_count_out,
-                                                                     header_byte_size,
-                                                                     payload_byte_size,
-                                                                     std::move(packet_buffer),
                                                                      std::move(header_sizes),
+                                                                     std::move(header_offsets),
+                                                                     std::move(header_buffer),
                                                                      std::move(payload_sizes),
+                                                                     std::move(payload_offsets),
+                                                                     std::move(payload_buffer),
                                                                      queue_idx);
                     output.on_next(std::move(raw_msg));
 

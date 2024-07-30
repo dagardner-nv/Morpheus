@@ -196,21 +196,38 @@ __global__ void _copy_packet_data_kernel(int32_t packet_count,
                                          uintptr_t* packets_buffer,
                                          uint32_t* header_sizes,
                                          uint32_t* payload_sizes,
-                                         uint8_t* dst_buffer,
-                                         uint32_t* dst_offsets)
+                                         int32_t* header_offsets,
+                                         int32_t* payload_offsets,
+                                         uint8_t* dst_header_buffer,
+                                         uint8_t* dst_payload_buffer)
 {
     int pkt_idx     = blockIdx.x * blockDim.x + threadIdx.x;
     int byte_offset = blockIdx.y * blockDim.y + threadIdx.y;
 
     if (pkt_idx < packet_count)
     {
-        const uint32_t packet_size = header_sizes[pkt_idx] + payload_sizes[pkt_idx];
+        const uint32_t header_size = header_sizes[pkt_idx];
+        const uint32_t payload_size = payload_sizes[pkt_idx];
+        const uint32_t packet_size = header_size + payload_size;
 
         if (byte_offset < packet_size)
         {
             uint8_t* pkt_addr                    = (uint8_t*)(packets_buffer[pkt_idx]);
-            const uint32_t dst_offset             = dst_offsets[pkt_idx];
-            dst_buffer[dst_offset + byte_offset] = pkt_addr[byte_offset];
+            //const uint32_t dst_offset             = dst_offsets[pkt_idx];
+            //dst_buffer[dst_offset + byte_offset] = pkt_addr[byte_offset];
+
+            if (byte_offset < header_size)
+            {
+                // Copy header data
+                const uint32_t dst_offset = header_offsets[pkt_idx];
+                dst_header_buffer[dst_offset + byte_offset] =  pkt_addr[byte_offset];
+            }
+            else
+            {
+                // Copy payload data
+                const uint32_t dst_offset = payload_offsets[pkt_idx];
+                dst_payload_buffer[dst_offset + byte_offset] =  pkt_addr[byte_offset];
+            }
         }
     }
 }
@@ -240,41 +257,39 @@ int packet_receive_kernel(doca_gpu_eth_rxq* rxq_0, doca_gpu_eth_rxq* rxq_1,
     return 0;
 }
 
-std::unique_ptr<rmm::device_buffer> copy_packet_data(int32_t packet_count, 
-                                                     uintptr_t* src_packet_data, 
-                                                     uint32_t* header_sizes, 
-                                                     uint32_t* payload_sizes,
-                                                     rmm::cuda_stream_view stream)
+std::pair<std::unique_ptr<rmm::device_buffer>, std::unique_ptr<rmm::device_buffer>> 
+copy_packet_data(int32_t packet_count, 
+                 uintptr_t* src_packet_data, 
+                 uint32_t* header_sizes, 
+                 uint32_t* payload_sizes,
+                 int32_t* header_offsets,
+                 int32_t* payload_offsets,
+                 rmm::cuda_stream_view stream)
 {
     rmm::device_buffer offset_buffer((packet_count+1) * sizeof(uint32_t), stream);
 
     auto header_sizes_tensor = matx::make_tensor<uint32_t>(header_sizes, {packet_count});
     auto payload_sizes_tensor = matx::make_tensor<uint32_t>(payload_sizes, {packet_count});
-    auto sizes_tensor = matx::make_tensor<uint32_t>({packet_count});
-    auto bytes_tensor = matx::make_tensor<uint32_t>({1});
+    auto header_bytes_tensor = matx::make_tensor<uint32_t>({1});
+    auto payload_bytes_tensor = matx::make_tensor<uint32_t>({1});
 
-    auto cum_tensor   = matx::make_tensor<uint32_t>({packet_count});
-    auto zero_tensor = matx::make_tensor<uint32_t>({1});
-    zero_tensor.SetVals({0});
-
-    auto offsets_tensor = matx::make_tensor<uint32_t>(static_cast<uint32_t*>(offset_buffer.data()), {packet_count+1});
-
-    (sizes_tensor = header_sizes_tensor + payload_sizes_tensor).run(stream.value());
-    (bytes_tensor = matx::sum(sizes_tensor)).run(stream.value());
-    (cum_tensor = matx::cumsum(sizes_tensor)).run(stream.value());
-    (offsets_tensor = matx::concat(0, zero_tensor, cum_tensor)).run(stream.value());
+    (header_bytes_tensor = matx::sum(header_sizes_tensor)).run(stream.value());
+    (payload_bytes_tensor = matx::sum(payload_sizes_tensor)).run(stream.value());
     MRC_CHECK_CUDA(cudaStreamSynchronize(stream));
     
-    auto dst_packet_data = std::make_unique<rmm::device_buffer>(bytes_tensor(0), stream);
+    auto dst_header_buffer = std::make_unique<rmm::device_buffer>(header_bytes_tensor(0), stream);
+    auto dst_payload_buffer = std::make_unique<rmm::device_buffer>(payload_bytes_tensor(0), stream);
 
     dim3 threadsPerBlock(32, 32);
     dim3 numBlocks((packet_count + threadsPerBlock.x - 1) / threadsPerBlock.x, (MAX_PKT_SIZE+threadsPerBlock.y-1) / threadsPerBlock.y);
     _copy_packet_data_kernel<<<numBlocks, threadsPerBlock, 0, stream>>>(
-        packet_count, src_packet_data, header_sizes, payload_sizes, static_cast<uint8_t*>(dst_packet_data->data()), static_cast<uint32_t*>(offset_buffer.data()));
+        packet_count, src_packet_data, header_sizes, payload_sizes, header_offsets, payload_offsets,
+        static_cast<uint8_t*>(dst_header_buffer->data())
+        static_cast<uint8_t*>(dst_payload_buffer->data()));
     
     MRC_CHECK_CUDA(cudaStreamSynchronize(stream));
 
-    return dst_packet_data;
+    return {dst_header_buffer, dst_payload_buffer};
 }
 
 } //doca

@@ -190,7 +190,6 @@ DocaConvertStage::subscribe_fn_t DocaConvertStage::build()
 void DocaConvertStage::on_raw_packet_message(sink_type_t raw_msg)
 {
     auto packet_count      = raw_msg->count();
-    auto pkt_addr_list     = raw_msg->get_pkt_addr_list();
     auto pkt_hdr_size_list = raw_msg->get_pkt_hdr_size_list();
     auto pkt_pld_size_list = raw_msg->get_pkt_pld_size_list();
     auto queue_idx         = raw_msg->get_queue_idx();
@@ -203,28 +202,17 @@ void DocaConvertStage::on_raw_packet_message(sink_type_t raw_msg)
     auto packet_buffer =
         doca::PacketDataBuffer(packet_count, header_buff_size, payload_buff_size, sizes_buff_size, m_stream_cpp);
 
-    // gather payload data, intentionally calling this first as it needs to perform an early sync operation
-    doca::gather_payload(packet_count,
-                         pkt_addr_list,
-                         pkt_hdr_size_list,
-                         pkt_pld_size_list,
-                         static_cast<uint8_t*>(packet_buffer.m_payload_buffer->data()),
-                         m_stream_cpp);
+    packet_buffer.m_payload_buffer.swap(raw_msg->m_payload_buffer);
+    packet_buffer.m_payload_sizes_buffer.swap(raw_msg->m_payload_sizes);
 
     // gather header data
     doca::gather_header(packet_count,
-                        pkt_addr_list,
+                        static_cast<uint8_t*>(raw_msg->m_header_buffer->data()),
                         pkt_hdr_size_list,
                         pkt_pld_size_list,
                         static_cast<uint32_t*>(packet_buffer.m_header_buffer->data()),
                         m_stream_cpp);
 
-    // TODO we should just take ownership of the buffer in the messafe
-    MRC_CHECK_CUDA(cudaMemcpyAsync(static_cast<uint8_t*>(packet_buffer.m_payload_sizes_buffer->data()),
-                                   pkt_pld_size_list,
-                                   sizes_buff_size,
-                                   cudaMemcpyDeviceToDevice,
-                                   m_stream_cpp));
 
     cudaStreamSynchronize(m_stream_cpp);
     m_buffer_channel->await_write(std::move(packet_buffer));
