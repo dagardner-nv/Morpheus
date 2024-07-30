@@ -219,8 +219,6 @@ DocaSourceStage::subscriber_fn_t DocaSourceStage::build()
                                                    cudaMemcpyDeviceToDevice,
                                                    stream_cpp));
 
-                    MRC_CHECK_CUDA(cudaStreamSynchronize(stream_cpp));
-
                     // copy_packet_data will perform a sync
                     auto [header_buffer, payload_buffer] = copy_packet_data(pkt_ptr->packet_count_out,  
                                                           pkt_ptr->pkt_addr, 
