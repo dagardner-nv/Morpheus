@@ -189,10 +189,7 @@ DocaConvertStage::subscribe_fn_t DocaConvertStage::build()
 
 void DocaConvertStage::on_raw_packet_message(sink_type_t raw_msg)
 {
-    auto packet_count      = raw_msg->count();
-    auto pkt_hdr_size_list = raw_msg->get_pkt_hdr_size_list();
-    auto pkt_pld_size_list = raw_msg->get_pkt_pld_size_list();
-    auto queue_idx         = raw_msg->get_queue_idx();
+    auto packet_count            = raw_msg->count();
     const auto payload_buff_size = raw_msg->get_payload_size();
 
     // since we are just extracting the ip4 source address, this buffer size is smaller than the input buffer
@@ -208,8 +205,7 @@ void DocaConvertStage::on_raw_packet_message(sink_type_t raw_msg)
     // gather header data
     doca::gather_header(packet_count,
                         static_cast<uint8_t*>(raw_msg->m_header_buffer->data()),
-                        pkt_hdr_size_list,
-                        pkt_pld_size_list,
+                        static_cast<int32_t*>(raw_msg->m_header_offsets->data()),
                         static_cast<uint32_t*>(packet_buffer.m_header_buffer->data()),
                         m_stream_cpp);
 

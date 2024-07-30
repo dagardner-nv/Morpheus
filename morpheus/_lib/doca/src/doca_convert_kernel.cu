@@ -67,10 +67,7 @@ __global__ void _packet_gather_payload_kernel(int32_t packet_count,
 
 __global__ void _packet_gather_src_ip_kernel(int32_t packet_count,
                                              uint8_t* src_buffer,
-                                             uint32_t* header_sizes,
-                                             uint32_t* payload_sizes,
                                              int32_t* header_offsets,
-                                             int32_t* payload_offsets,
                                              uint32_t* dst_buff)
 {
     int pkt_idx = threadIdx.x;

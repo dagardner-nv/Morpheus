@@ -85,7 +85,7 @@ RawPacketMessage::RawPacketMessage(uint32_t num_,
   m_header_buffer(std::move(header_buffer)),
   m_payload_sizes(std::move(payload_sizes)),
   m_payload_offsets(std::move(payload_offsets)),
-  m_ppayload_buffer(std::move(payload_buffer)),
+  m_payload_buffer(std::move(payload_buffer)),
   m_queue_idx(queue_idx_)
 {
     DCHECK(m_header_sizes->size() == m_payload_sizes->size());

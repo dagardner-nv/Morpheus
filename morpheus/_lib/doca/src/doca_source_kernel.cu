@@ -284,12 +284,12 @@ copy_packet_data(int32_t packet_count,
     dim3 numBlocks((packet_count + threadsPerBlock.x - 1) / threadsPerBlock.x, (MAX_PKT_SIZE+threadsPerBlock.y-1) / threadsPerBlock.y);
     _copy_packet_data_kernel<<<numBlocks, threadsPerBlock, 0, stream>>>(
         packet_count, src_packet_data, header_sizes, payload_sizes, header_offsets, payload_offsets,
-        static_cast<uint8_t*>(dst_header_buffer->data())
+        static_cast<uint8_t*>(dst_header_buffer->data()),
         static_cast<uint8_t*>(dst_payload_buffer->data()));
     
     MRC_CHECK_CUDA(cudaStreamSynchronize(stream));
 
-    return {dst_header_buffer, dst_payload_buffer};
+    return {std::move(dst_header_buffer), std::move(dst_payload_buffer)};
 }
 
 } //doca
