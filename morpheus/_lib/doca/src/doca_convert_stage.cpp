@@ -204,7 +204,6 @@ DocaConvertStage::subscribe_fn_t DocaConvertStage::build()
 void DocaConvertStage::on_raw_packet_message(sink_type_t raw_msg)
 {
     auto packet_count            = raw_msg->count();
-    const auto payload_buff_size = raw_msg->get_payload_size();
 
     // since we are just extracting the ip4 source address as an unsigned 32bit int, this buffer size is smaller than
     // the input buffer
