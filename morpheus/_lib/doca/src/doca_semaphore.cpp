@@ -65,7 +65,7 @@ bool DocaSemaphore::is_ready(uint32_t idx)
 {
     doca_gpu_semaphore_status status;
     DOCA_TRY(doca_gpu_semaphore_get_status(m_semaphore, idx, &status));
-    return (status == DOCA_GPU_SEMAPHORE_STATUS_READY) ? true : false;
+    return (status == DOCA_GPU_SEMAPHORE_STATUS_READY);
 }
 
 void DocaSemaphore::set_free(uint32_t idx)
