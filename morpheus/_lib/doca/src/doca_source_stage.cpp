@@ -195,17 +195,13 @@ DocaSourceStage::subscriber_fn_t DocaSourceStage::build()
                         LOG(ERROR) << "Received " << pkt_ptr->packet_count_out << " pkts > max pkts "
                                    << PACKETS_PER_BLOCK;
                     
-                    const auto header_byte_size = gather_sizes(pkt_ptr->packet_count_out, pkt_ptr->pkt_hdr_size, stream_cpp);
                     auto header_offsets = std::make_unique<rmm::device_buffer>(
                         std::move(sizes_to_offsets(pkt_ptr->packet_count_out, pkt_ptr->pkt_hdr_size, stream_cpp))
                     );
 
-                    const auto payload_byte_size = gather_sizes(pkt_ptr->packet_count_out, pkt_ptr->pkt_pld_size, stream_cpp);
                     auto payload_offsets = std::make_unique<rmm::device_buffer>(
                         std::move(sizes_to_offsets(pkt_ptr->packet_count_out, pkt_ptr->pkt_pld_size, stream_cpp))
                     );
-
-                    const auto packet_byte_size = header_byte_size + payload_byte_size;
 
                     const auto sizes_size = pkt_ptr->packet_count_out * sizeof(uint32_t);
                     auto header_sizes = std::make_unique<rmm::device_buffer>(sizes_size, stream_cpp);
@@ -222,6 +218,8 @@ DocaSourceStage::subscriber_fn_t DocaSourceStage::build()
                                                    payload_sizes->size(),
                                                    cudaMemcpyDeviceToDevice,
                                                    stream_cpp));
+
+                    MRC_CHECK_CUDA(cudaStreamSynchronize(stream_cpp));
 
                     // copy_packet_data will perform a sync
                     auto [header_buffer, payload_buffer] = copy_packet_data(pkt_ptr->packet_count_out,  

@@ -213,9 +213,6 @@ __global__ void _copy_packet_data_kernel(int32_t packet_count,
         if (byte_offset < packet_size)
         {
             uint8_t* pkt_addr                    = (uint8_t*)(packets_buffer[pkt_idx]);
-            //const uint32_t dst_offset             = dst_offsets[pkt_idx];
-            //dst_buffer[dst_offset + byte_offset] = pkt_addr[byte_offset];
-
             if (byte_offset < header_size)
             {
                 // Copy header data
@@ -226,7 +223,7 @@ __global__ void _copy_packet_data_kernel(int32_t packet_count,
             {
                 // Copy payload data
                 const uint32_t dst_offset = payload_offsets[pkt_idx];
-                dst_payload_buffer[dst_offset + byte_offset] =  pkt_addr[byte_offset];
+                dst_payload_buffer[dst_offset + (byte_offset-header_size)] =  pkt_addr[byte_offset];
             }
         }
     }
@@ -266,8 +263,6 @@ copy_packet_data(int32_t packet_count,
                  int32_t* payload_offsets,
                  rmm::cuda_stream_view stream)
 {
-    rmm::device_buffer offset_buffer((packet_count+1) * sizeof(uint32_t), stream);
-
     auto header_sizes_tensor = matx::make_tensor<uint32_t>(header_sizes, {packet_count});
     auto payload_sizes_tensor = matx::make_tensor<uint32_t>(payload_sizes, {packet_count});
     auto header_bytes_tensor = matx::make_tensor<uint32_t>({1});
