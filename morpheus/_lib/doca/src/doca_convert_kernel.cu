@@ -70,14 +70,13 @@ __global__ void _packet_gather_src_ip_kernel(int32_t packet_count,
                                              int32_t* header_offsets,
                                              uint32_t* dst_buff)
 {
-    int pkt_idx = threadIdx.x;
+    int pkt_idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-    while (pkt_idx < packet_count)
+    if (pkt_idx < packet_count)
     {
         const int32_t src_offset = header_offsets[pkt_idx];
         uint8_t* pkt_hdr_addr    = src_buffer + src_offset;
         dst_buff[pkt_idx]        = ip_to_int32(((struct eth_ip*)pkt_hdr_addr)->l3_hdr.src_addr);
-        pkt_idx += blockDim.x;
     }
 }
 
@@ -126,7 +125,8 @@ void gather_header(int32_t packet_count,
                    rmm::cuda_stream_view stream,
                    rmm::mr::device_memory_resource* mr)
 {
-    _packet_gather_src_ip_kernel<<<1, THREADS_PER_BLOCK, 0, stream>>>(
+    int numBlocks = (packet_count + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+    _packet_gather_src_ip_kernel<<<numBlocks, THREADS_PER_BLOCK, 0, stream>>>(
         packet_count, src_buffer, header_offsets, dst_buff);
 }
 
