@@ -70,15 +70,6 @@ class RawPacketMessage
                                                              std::unique_ptr<rmm::device_buffer>&& payload_buffer,
                                                              uint16_t queue_idx = 0xFFFF);
 
-    std::unique_ptr<rmm::device_buffer> m_header_sizes;
-    std::unique_ptr<rmm::device_buffer> m_header_offsets;
-    std::unique_ptr<rmm::device_buffer> m_header_buffer;
-    
-    std::unique_ptr<rmm::device_buffer> m_payload_sizes;
-    std::unique_ptr<rmm::device_buffer> m_payload_offsets;
-    std::unique_ptr<rmm::device_buffer> m_payload_buffer;
-
-  protected:
     RawPacketMessage(uint32_t num,
                      std::unique_ptr<rmm::device_buffer>&& header_sizes,
                      std::unique_ptr<rmm::device_buffer>&& header_offsets,
@@ -86,11 +77,18 @@ class RawPacketMessage
                      std::unique_ptr<rmm::device_buffer>&& payload_sizes,
                      std::unique_ptr<rmm::device_buffer>&& payload_offsets,
                      std::unique_ptr<rmm::device_buffer>&& payload_buffer,
-                     uint16_t queue_idx);
+                     uint16_t queue_idx = 0xFFFF);
+
 
     uint32_t m_num;
-
     uint16_t m_queue_idx;
+    std::unique_ptr<rmm::device_buffer> m_header_sizes;
+    std::unique_ptr<rmm::device_buffer> m_header_offsets;
+    std::unique_ptr<rmm::device_buffer> m_header_buffer;
+    
+    std::unique_ptr<rmm::device_buffer> m_payload_sizes;
+    std::unique_ptr<rmm::device_buffer> m_payload_offsets;
+    std::unique_ptr<rmm::device_buffer> m_payload_buffer;
 };
 
 struct RawPacketMessageProxy
