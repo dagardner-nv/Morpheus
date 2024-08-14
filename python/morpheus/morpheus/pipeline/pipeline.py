@@ -19,18 +19,16 @@ import signal
 import sys
 import threading
 import typing
-from collections import OrderedDict
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from enum import Enum
 from functools import partial
 
+import morpheus.pipeline as _pipeline  # pylint: disable=cyclic-import
 import mrc
 import networkx
-from tqdm import tqdm
-
-import morpheus.pipeline as _pipeline  # pylint: disable=cyclic-import
 from morpheus.config import Config
 from morpheus.utils.type_utils import pretty_print_type_name
+from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
@@ -302,7 +300,10 @@ class Pipeline():
         exec_options.topology.user_cpuset = f"0-{self._num_threads - 1}"
         exec_options.engine_factories.default_engine_type = mrc.core.options.EngineType.Thread
 
-        self._mrc_executor = mrc.Executor(exec_options)
+        def state_change_handler(state: int):
+            print(f"\n------------\nState change: {state}\n------------\n")
+
+        self._mrc_executor = mrc.Executor(exec_options, state_change_handler)
 
         mrc_pipeline = mrc.Pipeline()
 
