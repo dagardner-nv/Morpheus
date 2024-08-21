@@ -1,4 +1,4 @@
-    /*
+/*
  * SPDX-FileCopyrightText: Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -57,9 +57,6 @@ PYBIND11_MODULE(common, _module)
         .. autosummary::
            :toctree: _generate
         )pbdoc";
-
-    // Load the cudf helpers
-    CudfHelper::load();
 
     LoaderRegistry::register_factory_fn(
         "file",
@@ -145,6 +142,10 @@ PYBIND11_MODULE(common, _module)
                 py::arg("df"),
                 py::arg("filename"),
                 py::arg("file_type") = FileTypes::Auto);
+
+    _module.def("load_cudf_helper", [] {
+        CudfHelper::load();
+    });
 
     py::enum_<FilterSource>(
         _module, "FilterSource", "Enum to indicate which source the FilterDetectionsStage should operate on.")
