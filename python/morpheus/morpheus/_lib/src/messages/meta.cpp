@@ -245,6 +245,97 @@ std::optional<std::string> MessageMeta::ensure_sliceable_index()
     return std::nullopt;
 }
 
+morpheus::utilities::json_t MessageMeta::get_metadata(const std::string& key, bool fail_on_nonexist) const
+{
+    auto it = m_metadata.find(key);
+    if (it != m_metadata.end())
+    {
+        return m_metadata.at(key);
+    }
+    else if (fail_on_nonexist)
+    {
+        throw std::runtime_error("Metadata key does not exist: " + key);
+    }
+    return {};
+}
+
+void MessageMeta::set_metadata(const std::string& key, const morpheus::utilities::json_t& value)
+{
+    if (m_metadata.contains(key))
+    {
+        DVLOG(20) << "Overwriting metadata key " << key << " with value " << value;
+    }
+
+    m_metadata[key] = value;
+}
+
+SlicedMessageMeta::SlicedMessageMeta(std::shared_ptr<MessageMeta> other,
+                                     TensorIndex start,
+                                     TensorIndex stop,
+                                     std::vector<std::string> columns) :
+  MessageMeta(*other),
+  m_start(start),
+  m_stop(stop),
+  m_column_names(std::move(columns))
+{}
+
+TensorIndex SlicedMessageMeta::count() const
+{
+    return m_stop - m_start;
+}
+
+TableInfo SlicedMessageMeta::get_info() const
+{
+    return this->m_data->get_info().get_slice(m_start, m_stop, m_column_names);
+}
+
+TableInfo SlicedMessageMeta::get_info(const std::string& col_name) const
+{
+    auto full_info = this->m_data->get_info();
+
+    return full_info.get_slice(m_start, m_stop, {col_name});
+}
+
+TableInfo SlicedMessageMeta::get_info(const std::vector<std::string>& column_names) const
+{
+    auto full_info = this->m_data->get_info();
+
+    return full_info.get_slice(m_start, m_stop, column_names);
+}
+
+MutableTableInfo SlicedMessageMeta::get_mutable_info() const
+{
+    return this->m_data->get_mutable_info().get_slice(m_start, m_stop, m_column_names);
+}
+
+std::optional<std::string> SlicedMessageMeta::ensure_sliceable_index()
+{
+    throw std::runtime_error{"Unable to set a new index on the DataFrame from a partial view of the columns/rows."};
+}
+
+/********** AppShieldMessageMeta **********/
+AppShieldMessageMeta::AppShieldMessageMeta(std::shared_ptr<MessageMeta> other, const std::string& source) :
+  MessageMeta(*other)
+{
+    m_metadata["source"] = source;
+}
+
+std::string AppShieldMessageMeta::get_source() const
+{
+    try
+    {
+        return get_metadata("source", true).get<std::string>();
+    } catch (const std::runtime_error& e)
+    {
+        return "";
+    }
+}
+
+void AppShieldMessageMeta::set_source(const std::string& source)
+{
+    set_metadata("source", source);
+}
+
 /********** MessageMetaInterfaceProxy **********/
 std::shared_ptr<MessageMeta> MessageMetaInterfaceProxy::init_python(py::object&& data_frame)
 {
@@ -516,48 +607,23 @@ std::shared_ptr<MessageMeta> MessageMetaInterfaceProxy::get_slice(MessageMeta& s
     return self.get_slice(start, stop);
 }
 
-SlicedMessageMeta::SlicedMessageMeta(std::shared_ptr<MessageMeta> other,
-                                     TensorIndex start,
-                                     TensorIndex stop,
-                                     std::vector<std::string> columns) :
-  MessageMeta(*other),
-  m_start(start),
-  m_stop(stop),
-  m_column_names(std::move(columns))
-{}
-
-TensorIndex SlicedMessageMeta::count() const
+/********** AppShieldMessageMetaInterfaceProxy **********/
+std::shared_ptr<AppShieldMessageMeta> AppShieldMessageMetaInterfaceProxy::init_python(py::object&& data_frame,
+                                                                                      std::string source)
 {
-    return m_stop - m_start;
+    auto meta     = MessageMetaInterfaceProxy::init_python(std::move(data_frame));
+    auto app_meta = std::make_shared<AppShieldMessageMeta>(meta, source);
+    return app_meta;
 }
 
-TableInfo SlicedMessageMeta::get_info() const
+std::string AppShieldMessageMetaInterfaceProxy::get_source(AppShieldMessageMeta& self)
 {
-    return this->m_data->get_info().get_slice(m_start, m_stop, m_column_names);
+    return self.get_source();
 }
 
-TableInfo SlicedMessageMeta::get_info(const std::string& col_name) const
+void AppShieldMessageMetaInterfaceProxy::set_source(AppShieldMessageMeta& self, std::string source)
 {
-    auto full_info = this->m_data->get_info();
-
-    return full_info.get_slice(m_start, m_stop, {col_name});
-}
-
-TableInfo SlicedMessageMeta::get_info(const std::vector<std::string>& column_names) const
-{
-    auto full_info = this->m_data->get_info();
-
-    return full_info.get_slice(m_start, m_stop, column_names);
-}
-
-MutableTableInfo SlicedMessageMeta::get_mutable_info() const
-{
-    return this->m_data->get_mutable_info().get_slice(m_start, m_stop, m_column_names);
-}
-
-std::optional<std::string> SlicedMessageMeta::ensure_sliceable_index()
-{
-    throw std::runtime_error{"Unable to set a new index on the DataFrame from a partial view of the columns/rows."};
+    self.set_source(std::move(source));
 }
 
 }  // namespace morpheus

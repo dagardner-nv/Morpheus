@@ -21,7 +21,8 @@
 #include "morpheus/objects/data_table.hpp"  // for IDataTable
 #include "morpheus/objects/table_info.hpp"
 #include "morpheus/objects/tensor_object.hpp"
-#include "morpheus/types.hpp"  // for TensorIndex
+#include "morpheus/types.hpp"                 // for TensorIndex
+#include "morpheus/utilities/json_types.hpp"  // for json_t
 
 #include <cudf/io/types.hpp>
 #include <pybind11/pytypes.h>
@@ -157,6 +158,24 @@ class MORPHEUS_EXPORT MessageMeta
     static std::shared_ptr<MessageMeta> create_from_cpp(cudf::io::table_with_metadata&& data_table,
                                                         int index_col_count = 0);
 
+    /**
+     * @brief Get a metadata value for the given key from the message.
+     * If the key does not exist, the behavior depends on the fail_on_nonexist parameter.
+     *
+     * @param key A string indicating the metadata key.
+     * @param fail_on_nonexist If true, throws an exception when the key does not exist.
+     *                         If false, returns std::nullopt for non-existing keys.
+     * @return A morpheus::utilities::json_t object describing the metadata value if it exists.
+     */
+    [[nodiscard]] morpheus::utilities::json_t get_metadata(const std::string& key, bool fail_on_nonexist = false) const;
+
+    /**
+     * @brief Add a key-value pair to the metadata for the message.
+     * @param key A string key for the metadata value.
+     * @param value A morpheus::utilities::json_t object value.
+     */
+    void set_metadata(const std::string& key, const morpheus::utilities::json_t& value);
+
   protected:
     MessageMeta(std::shared_ptr<IDataTable> data);
 
@@ -170,6 +189,7 @@ class MORPHEUS_EXPORT MessageMeta
     static pybind11::object cpp_to_py(cudf::io::table_with_metadata&& table, int index_col_count = 0);
 
     std::shared_ptr<IDataTable> m_data;
+    morpheus::utilities::json_t m_metadata{};
 };
 
 /**
@@ -201,6 +221,14 @@ class MORPHEUS_EXPORT SlicedMessageMeta : public MessageMeta
     TensorIndex m_start{0};
     TensorIndex m_stop{-1};
     std::vector<std::string> m_column_names;
+};
+
+class MORPHEUS_EXPORT AppShieldMessageMeta : public MessageMeta
+{
+  public:
+    AppShieldMessageMeta(std::shared_ptr<MessageMeta> other, const std::string& source);
+    std::string get_source() const;
+    void set_source(const std::string& source);
 };
 
 /****** Python Interface **************************/
@@ -335,6 +363,14 @@ struct MORPHEUS_EXPORT MessageMetaInterfaceProxy
      * @return std::shared_ptr<MessageMeta> the deep copy of the speicifed slice
      */
     static std::shared_ptr<MessageMeta> get_slice(MessageMeta& self, TensorIndex start, TensorIndex stop);
+};
+
+struct MORPHEUS_EXPORT AppShieldMessageMetaInterfaceProxy : public MessageMetaInterfaceProxy
+{
+    static std::shared_ptr<AppShieldMessageMeta> init_python(pybind11::object&& data_frame, std::string source);
+
+    static std::string get_source(AppShieldMessageMeta& self);
+    static void set_source(AppShieldMessageMeta& self, std::string source);
 };
 /** @} */  // end of group
 }  // namespace morpheus

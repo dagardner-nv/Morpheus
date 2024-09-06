@@ -153,6 +153,10 @@ PYBIND11_MODULE(messages, _module)
     reg_py_type_helper<MultiInferenceNLPMessage>();
     reg_py_type_helper<MultiResponseMessage>();
     reg_py_type_helper<MultiResponseProbsMessage>();
+    reg_py_type_helper<AppShieldMessageMeta>();
+
+    // EdgeConnectors for derived classes of MessageMeta to MessageMeta
+    register_permutations<MessageMeta, AppShieldMessageMeta>();
 
     // EdgeConnectors for derived classes of MultiMessage to MultiMessage
     register_permutations<MultiMessage,
@@ -268,6 +272,12 @@ PYBIND11_MODULE(messages, _module)
              py::arg("start"),
              py::arg("stop"))
         .def_static("make_from_file", &MessageMetaInterfaceProxy::init_cpp);
+
+    py::class_<AppShieldMessageMeta, MessageMeta, std::shared_ptr<AppShieldMessageMeta>>(_module,
+                                                                                         "AppShieldMessageMeta")
+        .def(py::init<>(&AppShieldMessageMetaInterfaceProxy::init_python), py::arg("df"), py::arg("source"))
+        .def_property(
+            "source", &AppShieldMessageMetaInterfaceProxy::get_source, &AppShieldMessageMetaInterfaceProxy::set_source);
 
     py::class_<MultiMessage, std::shared_ptr<MultiMessage>>(_module, "MultiMessage")
         .def(py::init<>(&MultiMessageInterfaceProxy::init),

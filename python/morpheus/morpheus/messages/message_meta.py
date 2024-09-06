@@ -366,7 +366,7 @@ class UserMessageMeta(MessageMeta, cpp_class=None):
 
 
 @dataclasses.dataclass(init=False)
-class AppShieldMessageMeta(MessageMeta, cpp_class=None):
+class AppShieldMessageMeta(MessageMeta, cpp_class=_messages.AppShieldMessageMeta):
     """
     This class extends MessageMeta to also hold source corresponding to batched metadata.
 
