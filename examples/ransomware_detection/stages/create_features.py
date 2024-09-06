@@ -25,8 +25,8 @@ from morpheus.cli.register_stage import register_stage
 from morpheus.config import Config
 from morpheus.config import PipelineModes
 from morpheus.messages import MultiMessage
+from morpheus.messages.message_meta import AppShieldMessageMeta
 from morpheus.pipeline.multi_message_stage import MultiMessageStage
-from morpheus.stages.input.appshield_source_stage import AppShieldMessageMeta
 
 
 @register_stage("create-features", modes=[PipelineModes.FIL])
