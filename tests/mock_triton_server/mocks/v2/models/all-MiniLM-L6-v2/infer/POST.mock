@@ -1,0 +1,22 @@
+HTTP/1.1 200 OK
+Content-Type: application/octet-stream
+{{#inject}}(()=>{
+
+    // this mock only has one payload
+    const counter = 1;
+    const filename = "payloads/minilm/minilm_infer_resp." + counter + ".body"
+
+    logger.info(`Returning payload for counter: ${counter}, and filename: ${filename}`);
+
+    let inf_header_content_length = 159;
+
+    // This seems like the only way to pass a variable to the file helper
+    request._nv_morpheus_params = {
+        counter,
+        filename
+    };
+
+    return "Inference-Header-Content-Length: " + inf_header_content_length;
+})();{{/inject}}
+
+{{file path=request._nv_morpheus_params.filename}}

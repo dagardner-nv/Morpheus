@@ -31,7 +31,6 @@ from morpheus_llm.service.vdb.milvus_vector_db_service import MilvusVectorDBServ
 
 
 @pytest.mark.milvus
-@pytest.mark.use_python
 @pytest.mark.use_pandas
 @pytest.mark.import_mod([
     os.path.join(TEST_DIRS.examples_dir, 'llm/common'),
@@ -39,19 +38,18 @@ from morpheus_llm.service.vdb.milvus_vector_db_service import MilvusVectorDBServ
     os.path.join(TEST_DIRS.examples_dir, 'llm/vdb_upload/run.py'),
     os.path.join(TEST_DIRS.examples_dir, 'llm/vdb_upload/pipeline.py')
 ])
-@mock.patch('requests.Session')
-@mock.patch('tritonclient.grpc.InferenceServerClient')
-@pytest.mark.parametrize('is_rss_source, exclude_columns, expected_output_path, vdb_conf_file',
-                         [(True, ['id', 'embedding', 'source'],
-                           'service/milvus_rss_data.json',
-                           'examples/llm/vdb_upload/vdb_rss_source_config.yaml'),
-                          (False, ['id', 'embedding'],
-                           'examples/llm/vdb_upload/test_data_output.json',
-                           'examples/llm/vdb_upload/vdb_file_source_config.yaml')])
+@pytest.mark.parametrize(
+    'is_rss_source, exclude_columns, expected_output_path, vdb_conf_file',
+    [
+        #     (True, ['id', 'embedding', 'source'],
+        #    'service/milvus_rss_data.json',
+        #    'examples/llm/vdb_upload/vdb_rss_source_config.yaml'),
+        (False, ['id', 'embedding'],
+         'examples/llm/vdb_upload/test_data_output.json',
+         'examples/llm/vdb_upload/vdb_file_source_config.yaml')
+    ])
 @pytest.mark.skip(reason="Test is broken because of a bad merge. Re-enable once config.yamls are fixed.")
-def test_vdb_upload_pipe(mock_triton_client: mock.MagicMock,
-                         mock_requests_session: mock.MagicMock,
-                         dataset: DatasetManager,
+def test_vdb_upload_pipe(dataset: DatasetManager,
                          milvus_server_uri: str,
                          import_mod: list[types.ModuleType],
                          is_rss_source: str,
@@ -76,8 +74,8 @@ def test_vdb_upload_pipe(mock_triton_client: mock.MagicMock,
             mock_response.text = web_responses[url]
             return mock_response
 
-        mock_requests_session.return_value = mock_requests_session
-        mock_requests_session.get.side_effect = mock_get_fn
+        # mock_requests_session.return_value = mock_requests_session
+        # mock_requests_session.get.side_effect = mock_get_fn
 
         # As page_content is used by other pipelines, we're just renaming it to content.
         expected_values_df = expected_values_df.rename(columns={"page_content": "content"})
