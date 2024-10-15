@@ -80,9 +80,11 @@ cdef public api:
 
         cdef table_metadata tbl_meta
 
+        print("make_table_from_table_info_data - 0", flush=True)
         num_index_cols_meta = 0
         cdef column_name_info child_info
         for i, name in enumerate(owner._column_names, num_index_cols_meta):
+            print(f"*** name: {name}", flush=True)
             child_info.name = name.encode()
             tbl_meta.schema_info.push_back(child_info)
             _set_col_children_metadata(
@@ -90,9 +92,12 @@ cdef public api:
                 tbl_meta.schema_info[i]
             )
 
+        check_empty_name = len(owner._column_names) == 1
+        print(f"make_table_from_table_info_data - 1 check_empty_name={check_empty_name}", flush=True)
         index_names = None
 
         if (table_info.index_names.size() > 0):
+            print("make_table_from_table_info_data - 1.1", flush=True)
             index_names = []
 
             for c_name in table_info.index_names:
@@ -101,6 +106,7 @@ cdef public api:
 
         column_names = []
 
+        print("make_table_from_table_info_data - 2", flush=True)
         for c_name in table_info.column_names:
                 name = c_name.decode()
                 column_names.append(name if name != "" else None)
@@ -111,6 +117,7 @@ cdef public api:
         for c_index in table_info.column_indices:
             column_indicies.append(c_index)
 
+        print("make_table_from_table_info_data - 3", flush=True)
         try:
             data, index = data_from_table_view_indexed(
                 table_info.table_view,
@@ -123,6 +130,7 @@ cdef public api:
             import traceback
             print("error while converting libcudf table to cudf dataframe:", traceback.format_exc())
 
+        print("make_table_from_table_info_data - 4", flush=True)
         df = cudf.DataFrame._from_data(data, index)
 
         update_struct_field_names(df, tbl_meta.schema_info)
@@ -140,14 +148,17 @@ cdef public api:
 
         # cuDF does a weird check where if there is only one name in both index and columns, and that column is empty or
         # None, then change it to '""'. Not sure what this is used for
-        check_empty_name = get_column_names(table, True).size() == 1
+        check_empty_name = temp_col_names.size() == 1
+        print(f"check_empty_name: {check_empty_name}", flush=True)
 
         for name in table._index.names:
+            print(f"index name prior: {name}", flush=True)
             if (check_empty_name and name in (None, '')):
                 name = '""'
             elif (name is None):
                 name = ""
 
+            print(f"index name: {str.encode(name)}", flush=True)
             index_names.push_back(str.encode(name))
 
         for name in table._column_names:
@@ -156,6 +167,7 @@ cdef public api:
             elif (name is None):
                 name = ""
 
+            print(f"col name: {str.encode(name)}", flush=True)
             column_names.push_back(str.encode(name))
 
         return TableInfoData(input_table_view, index_names, column_names)
@@ -179,6 +191,7 @@ cdef public api:
         cdef size_type column_idx = 0
         table_owner = isinstance(owner, cudf.core.frame.Frame)
 
+        print("data_from_table_view_indexed - 0", flush=True)
         # First construct the index, if any
         index = None
         if index_names is not None:
@@ -197,25 +210,39 @@ cdef public api:
             index = cudf.core.index._index_from_data(
                 dict(zip(index_names, index_columns)))
 
+        print("data_from_table_view_indexed - 1", flush=True)
         # Construct the data dict
         cdef size_type source_column_idx = 0
         data_columns = []
         for _ in column_names:
+            print("data_from_table_view_indexed - 1.1", flush=True)
             column_owner = owner
             if table_owner:
+                print(f"data_from_table_view_indexed - 1.11 - {source_column_idx}", flush=True)
                 column_owner = owner._columns[column_indices[source_column_idx]]
+                print(f"data_from_table_view_indexed - 1.12 - {column_owner}", flush=True)
+
+            print(f"data_from_table_view_indexed - 1.2 {_} - {column_idx}", flush=True)
+            tvc = tv.column(column_idx)
+            print(f"data_from_table_view_indexed - 1.21", flush=True)
+            ncol = Column.from_column_view(tvc, column_owner)
+            print(f"data_from_table_view_indexed - 1.22", flush=True)
             data_columns.append(
-                Column.from_column_view(tv.column(column_idx), column_owner)
+                ncol
             )
+            print("data_from_table_view_indexed - 1.3", flush=True)
             column_idx += 1
             source_column_idx += 1
 
+        print("data_from_table_view_indexed - 2", flush=True)
         return dict(zip(column_names, data_columns)), index
 
 cdef _set_col_children_metadata(Column col,
                                 column_name_info& col_meta):
+    print(f"_set_col_children_metadata: {col_meta.name}", flush=True)
     cdef column_name_info child_info
     if isinstance(col.dtype, cudf.StructDtype):
+        print(f"_set_col_children_metadata: {col_meta.name} - is struct type", flush=True)
         for i, (child_col, name) in enumerate(
             zip(col.children, list(col.dtype.fields))
         ):
@@ -225,18 +252,21 @@ cdef _set_col_children_metadata(Column col,
                 child_col, col_meta.children[i]
             )
     elif isinstance(col.dtype, cudf.ListDtype):
+        print(f"_set_col_children_metadata: {col_meta.name} - is list type", flush=True)
         for i, child_col in enumerate(col.children):
             col_meta.children.push_back(child_info)
             _set_col_children_metadata(
                 child_col, col_meta.children[i]
             )
     else:
+        print(f"_set_col_children_metadata: {col_meta.name} - not struct or list type", flush=True)
         return
 
 cdef update_struct_field_names(
     table,
     vector[column_name_info]& schema_info
 ):
+    print("update_struct_field_names", flush=True)
     for i, (name, col) in enumerate(table._data.items()):
         table._data[name] = update_column_struct_field_names(
             col, schema_info[i]
@@ -247,6 +277,7 @@ cdef Column update_column_struct_field_names(
     Column col,
     column_name_info& info
 ):
+    print("update_column_struct_field_names", flush=True)
     cdef vector[string] field_names
 
     if col.dtype != "object" and col.children:
