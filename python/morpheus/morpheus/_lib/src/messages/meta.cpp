@@ -447,16 +447,14 @@ py::object MessageMetaInterfaceProxy::get_data_frame(MessageMeta& self)
     TableInfo info;
 
     {
-        // Need to release the GIL before calling `get_info()`
+        // Need to release the GIL before calling `get_meta()`
         pybind11::gil_scoped_release no_gil;
 
         // Get the column and convert to cudf
         info = self.get_info();
     }
 
-    auto py_object = info.get_parent()->get_py_object();
-    pybind11::gil_scoped_acquire gil;
-    return py_object.attr("copy")("deep"_a = true);
+    return CudfHelper::table_from_table_info(info);
 }
 
 py::object MessageMetaInterfaceProxy::df_property(MessageMeta& self)
