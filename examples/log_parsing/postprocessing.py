@@ -15,6 +15,7 @@
 import json
 import logging
 import pathlib
+import pprint
 import typing
 from collections import defaultdict
 
@@ -27,12 +28,15 @@ import cudf
 from morpheus.cli.register_stage import register_stage
 from morpheus.config import Config
 from morpheus.config import PipelineModes
+from morpheus.io.serializers import write_df_to_file
 from morpheus.messages import ControlMessage
 from morpheus.messages import MessageMeta
 from morpheus.pipeline.single_port_stage import SinglePortStage
 from morpheus.pipeline.stage_schema import StageSchema
 
 logger = logging.getLogger(f"morpheus.{__name__}")
+
+call_counter = defaultdict(int)
 
 
 @register_stage("log-postprocess", modes=[PipelineModes.NLP])
@@ -68,6 +72,10 @@ class LogParsingPostProcessingStage(SinglePortStage):
             config = json.load(f)
 
         self._label_map = {int(k): v for k, v in config["id2label"].items()}
+        print("Vocab lookup:")
+        pprint.pprint(self._vocab_lookup)
+        print("Label map:")
+        pprint.pprint(self._label_map)
 
     @property
     def name(self) -> str:
@@ -83,8 +91,13 @@ class LogParsingPostProcessingStage(SinglePortStage):
         schema.output_schema.set_type(MessageMeta)
 
     def _postprocess(self, msg: ControlMessage):
+        call_counter[self.name] += 1
+
         infer_pdf = pd.DataFrame(msg.tensors().get_tensor('seq_ids').get()).astype(int)
         infer_pdf.columns = ["doc", "start", "stop"]
+
+        write_df_to_file(infer_pdf, f"/tmp/infer_pdf_0_{call_counter[self.name]}.jsonlines")
+
         infer_pdf["confidences"] = msg.tensors().get_tensor('confidences').tolist()
         infer_pdf["labels"] = msg.tensors().get_tensor('labels').tolist()
         infer_pdf["token_ids"] = msg.tensors().get_tensor('input_ids').tolist()
@@ -95,13 +108,19 @@ class LogParsingPostProcessingStage(SinglePortStage):
 
         infer_pdf["token_ids"] = infer_pdf.apply(lambda row: row["token_ids"][row["start"]:row["stop"]], axis=1)
 
+        write_df_to_file(infer_pdf, f"/tmp/infer_pdf_1_{call_counter[self.name]}.jsonlines")
         # aggregated logs
         infer_pdf = infer_pdf.groupby("doc").agg({"token_ids": "sum", "confidences": "sum", "labels": "sum"})
+
+        write_df_to_file(infer_pdf, f"/tmp/infer_pdf_2_{call_counter[self.name]}.jsonlines")
 
         # parse_by_label
         parsed_dfs = infer_pdf.apply(lambda row: self.__get_label_dicts(row), axis=1, result_type="expand")
 
+        write_df_to_file(parsed_dfs, f"/tmp/infer_pdf_3_{call_counter[self.name]}.jsonlines")
+
         ext_parsed = pd.DataFrame(parsed_dfs[0].tolist())
+        print(f"\n*********\n{ext_parsed}\n*********\n")
         parsed_df = pd.DataFrame()
         for label in ext_parsed.columns:
             if label[0] == "B":
@@ -111,10 +130,19 @@ class LogParsingPostProcessingStage(SinglePortStage):
                 else:
                     parsed_df[col_name] = ext_parsed[label]
 
+        write_df_to_file(parsed_df, f"/tmp/infer_pdf_4_{call_counter[self.name]}.jsonlines")
+
         # decode cleanup
         parsed_df = self.__decode_cleanup(parsed_df)
+
+        write_df_to_file(parsed_df, f"/tmp/infer_pdf_5_{call_counter[self.name]}.jsonlines")
         parsed_df["doc"] = parsed_dfs.index
-        return MessageMeta(df=cudf.DataFrame.from_pandas(parsed_df))
+
+        write_df_to_file(parsed_df, f"/tmp/infer_pdf_6_{call_counter[self.name]}.jsonlines")
+
+        cdf = cudf.DataFrame.from_pandas(parsed_df)
+        write_df_to_file(cdf, f"/tmp/infer_pdf_7_{call_counter[self.name]}.jsonlines")
+        return MessageMeta(df=cdf)
 
     def __get_label_dicts(self, row):
         token_dict = defaultdict(str)

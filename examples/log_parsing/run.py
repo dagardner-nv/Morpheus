@@ -14,6 +14,8 @@
 
 import logging
 import os
+import typing
+from collections import defaultdict
 
 import click
 # pylint: disable=no-name-in-module
@@ -23,13 +25,33 @@ from postprocessing import LogParsingPostProcessingStage
 from morpheus.cli.utils import MorpheusRelativePath
 from morpheus.config import Config
 from morpheus.config import PipelineModes
+from morpheus.io.serializers import write_df_to_file
+from morpheus.messages import ControlMessage
 from morpheus.pipeline import LinearPipeline
+from morpheus.pipeline.stage_decorator import stage
 from morpheus.stages.general.monitor_stage import MonitorStage
 from morpheus.stages.input.file_source_stage import FileSourceStage
 from morpheus.stages.output.write_to_file_stage import WriteToFileStage
 from morpheus.stages.preprocess.deserialize_stage import DeserializeStage
 from morpheus.stages.preprocess.preprocess_nlp_stage import PreprocessNLPStage
 from morpheus.utils.logger import configure_logging
+
+filename_counter = defaultdict(int)
+
+
+@stage
+def df_writer(msg: typing.Any, *, filename: str) -> typing.Any:
+    if isinstance(msg, ControlMessage):
+        meta = msg.payload()
+    else:
+        meta = msg
+
+    filename_counter[filename] += 1
+    full_filename = f"{filename}.{filename_counter[filename]}.jsonlines"
+
+    write_df_to_file(meta.df, full_filename)
+
+    return msg
 
 
 @click.command()
@@ -117,6 +139,8 @@ def run_pipeline(
     # At this stage, messages were logically partitioned based on the 'pipeline_batch_size'.
     pipeline.add_stage(DeserializeStage(config))
 
+    pipeline.add_stage(df_writer(config, filename="/tmp/deserialized_df"))
+
     # Add a preprocessing stage.
     # This stage preprocess the rows in the Dataframe.
     pipeline.add_stage(
@@ -128,6 +152,8 @@ def run_pipeline(
                            add_special_tokens=False,
                            column="raw"))
 
+    pipeline.add_stage(df_writer(config, filename="/tmp/pre_processed"))
+
     # Add a monitor stage.
     # This stage logs the metrics (msg/sec) from the above stage.
     pipeline.add_stage(MonitorStage(config, description="Preprocessing rate"))
@@ -137,6 +163,8 @@ def run_pipeline(
     pipeline.add_stage(
         LogParsingInferenceStage(config, model_name=model_name, server_url=server_url, force_convert_inputs=True))
 
+    pipeline.add_stage(df_writer(config, filename="/tmp/log_inf"))
+
     # Add a monitor stage.
     # This stage logs the metrics (msg/sec) from the above stage.
     pipeline.add_stage(MonitorStage(config, description="Inference rate", unit="inf"))
@@ -145,6 +173,8 @@ def run_pipeline(
     # This stage does post-processing on the inference response.
     pipeline.add_stage(
         LogParsingPostProcessingStage(config, vocab_path=model_vocab_file, model_config_path=model_config_file))
+
+    pipeline.add_stage(df_writer(config, filename="/tmp/log_post"))
 
     # Add a write file stage.
     # This stage writes all messages to a file.
