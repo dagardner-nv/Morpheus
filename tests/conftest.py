@@ -973,23 +973,21 @@ def milvus_server_uri(tmp_path_factory):
         yield uri
 
     else:
-        from milvus import MilvusServer
+        from milvus_lite.server import Server
 
-        milvus_server = MilvusServer(wait_for_started=False)
+        db_file = tmp_path_factory.mktemp("milvus_store") / "milvus_test.db"
+        port = _get_random_port()
+        address = f"localhost:{port}"
+        milvus_server = Server(db_file=db_file, address=address)
+        milvus_server.start()
 
-        # Milvus checks for already bound ports but it doesnt seem to work for webservice_port. Use a random one
-        webservice_port = _get_random_port()
-        milvus_server.webservice_port = webservice_port
-        milvus_server.set_base_dir(tmp_path_factory.mktemp("milvus_store"))
-        with milvus_server:
-            host = milvus_server.server_address
-            port = milvus_server.listen_port
-            uri = f"http://{host}:{port}"
+        logger.info("Started Milvus at: %s", uri)
+        #wait_for_milvus(host="localhost", port=port, timeout=180)
+        time.sleep(30)
 
-            logger.info("Started Milvus at: %s", uri)
-            wait_for_milvus(host=host, port=webservice_port, timeout=180)
+        yield uri
 
-            yield uri
+        milvus_server.stop()
 
 
 @pytest.fixture(scope="session", name="milvus_data")

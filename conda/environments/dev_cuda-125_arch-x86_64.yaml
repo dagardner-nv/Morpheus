@@ -110,8 +110,7 @@ dependencies:
   - --extra-index-url https://download.pytorch.org/whl/cu124
   - databricks-cli < 0.100
   - databricks-connect
-  - milvus==2.3.5
-  - pymilvus==2.3.6
+  - pymilvus==2.5
   - pytest-kafka==0.6.0
   - torch==2.4.0+cu124
 name: dev_cuda-125_arch-x86_64
