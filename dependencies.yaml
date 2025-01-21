@@ -223,7 +223,6 @@ channels:
   - rapidsai-nightly
   - nvidia
   - nvidia/label/dev
-  - pytorch
 
 dependencies:
 
@@ -413,7 +412,7 @@ dependencies:
           - websockets
           - pip
           - pip:
-            - &torch-extra-index --extra-index-url https://download.pytorch.org/whl/cu126
+            - &torch-extra-index --extra-index-url https://download.pytorch.org/whl/test/cu126
             - databricks-cli < 0.100
             - databricks-connect
             - &torch torch==2.6.0+cu126

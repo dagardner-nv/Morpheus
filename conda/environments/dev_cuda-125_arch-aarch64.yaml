@@ -7,7 +7,6 @@ channels:
 - rapidsai-nightly
 - nvidia
 - nvidia/label/dev
-- pytorch
 dependencies:
 - appdirs
 - automake=1.16.5
@@ -102,7 +101,7 @@ dependencies:
 - websockets
 - yapf=0.43
 - pip:
-  - --extra-index-url https://download.pytorch.org/whl/cu126
+  - --extra-index-url https://download.pytorch.org/whl/test/cu126
   - databricks-cli < 0.100
   - databricks-connect
   - pypdfium2==4.30
