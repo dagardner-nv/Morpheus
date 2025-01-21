@@ -107,11 +107,11 @@ dependencies:
 - websockets
 - yapf=0.43
 - pip:
-  - --extra-index-url https://download.pytorch.org/whl/cu124
+  - --extra-index-url https://download.pytorch.org/whl/cu126
   - databricks-cli < 0.100
   - databricks-connect
   - milvus==2.3.5
   - pymilvus==2.3.6
   - pytest-kafka==0.6.0
-  - torch==2.4.0+cu124
+  - torch==2.6.0+cu126
 name: dev_cuda-125_arch-x86_64

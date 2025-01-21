@@ -121,7 +121,7 @@ dependencies:
 - websockets
 - yapf=0.43
 - pip:
-  - --extra-index-url https://download.pytorch.org/whl/cu124
+  - --extra-index-url https://download.pytorch.org/whl/cu126
   - --find-links https://data.dgl.ai/wheels-test/repo.html
   - --find-links https://data.dgl.ai/wheels/cu121/repo.html
   - databricks-cli < 0.100
@@ -139,5 +139,5 @@ dependencies:
   - pytest-kafka==0.6.0
   - python-logging-loki
   - sentence-transformers==2.7
-  - torch==2.4.0
+  - torch==2.6.0+cu126
 name: all_cuda-125_arch-aarch64

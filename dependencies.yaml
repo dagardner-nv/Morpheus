@@ -413,9 +413,10 @@ dependencies:
           - websockets
           - pip
           - pip:
-            - &torch-extra-index --extra-index-url https://download.pytorch.org/whl/cu124
+            - &torch-extra-index --extra-index-url https://download.pytorch.org/whl/cu126
             - databricks-cli < 0.100
             - databricks-connect
+            - &torch torch==2.6.0+cu126
     specific:
       - output_types: [conda]
         matrices:
@@ -426,12 +427,8 @@ dependencies:
                 # Milvus does not have arm64 builds for linux
                 - &milvus milvus==2.3.5 # update to match pymilvus when available
                 - &pymilvus pymilvus==2.3.6
-                - &torchcu torch==2.4.0+cu124
           - matrix:
               arch: aarch64
-            packages:
-              - pip:
-                - &torch torch==2.4.0
 
   test_python_morpheus:
     common:
@@ -465,17 +462,7 @@ dependencies:
       - output_types: [requirements]
         packages:
            - *torch-extra-index
-    specific:
-      - output_types: [requirements]
-        matrices:
-          - matrix:
-              arch: x86_64
-            packages:
-              - *torchcu
-          - matrix:
-              arch: aarch64
-            packages:
-              - *torch
+           - *torch
 
   morpheus_llm_pip:
     common:
@@ -513,19 +500,7 @@ dependencies:
           - tini=0.19
           - pip:
             - *torch-extra-index
-    specific:
-      - output_types: [conda]
-        matrices:
-          - matrix:
-              arch: x86_64
-            packages:
-              - pip:
-                - *torchcu
-          - matrix:
-              arch: aarch64
-            packages:
-              - pip:
-                - *torch
+            - *torch
 
   example-gnn:
     common:
