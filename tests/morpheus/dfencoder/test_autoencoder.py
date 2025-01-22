@@ -107,7 +107,6 @@ def compare_numeric_features(features, expected_features):
         assert isinstance(ae_vals['scaler'], expected_vals['scaler_cls'])
 
 
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="Need CUDA enabled torch installation")
 def test_ohe():
     tensor = torch.tensor(range(4), dtype=torch.int64)
     results = autoencoder._ohe(tensor, 4, device="cpu")
