@@ -175,8 +175,7 @@ class AbpPcapPreprocessingStage(PreprocessBaseStage):
         data = cp.asarray(merged_df[fea_cols].to_cupy(), order='C', dtype=cp.float32)
         count = data.shape[0]
 
-        for col in req_cols:
-            meta.set_data(col, merged_df[col])
+        meta.set_data(req_cols, merged_df[req_cols])
 
         del merged_df
 
