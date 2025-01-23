@@ -24,6 +24,7 @@ from morpheus.config import Config
 from morpheus.config import PipelineModes
 from morpheus.pipeline.linear_pipeline import LinearPipeline
 from morpheus.stages.general.monitor_stage import MonitorStage
+from morpheus.stages.general.trigger_stage import TriggerStage
 from morpheus.stages.inference.triton_inference_stage import TritonInferenceStage
 from morpheus.stages.input.file_source_stage import FileSourceStage
 from morpheus.stages.output.write_to_file_stage import WriteToFileStage
@@ -135,9 +136,15 @@ def run_pipeline(
             filter_null=False,
         ))
 
+    pipeline.add_stage(MonitorStage(config, description="File Source"))
+
     # Add a deserialize stage.
     # At this stage, messages were logically partitioned based on the 'pipeline_batch_size'.
     pipeline.add_stage(DeserializeStage(config))
+
+    pipeline.add_stage(MonitorStage(config, description="DeserializeStage"))
+
+    pipeline.add_stage(TriggerStage(config))
 
     # Add the custom preprocessing stage.
     # This stage preprocess the rows in the Dataframe.
@@ -147,6 +154,8 @@ def run_pipeline(
     # This stage logs the metrics (msg/sec) from the above stage.
     pipeline.add_stage(MonitorStage(config, description="Preprocessing rate"))
 
+    pipeline.add_stage(TriggerStage(config))
+
     # Add a inference stage.
     # This stage sends inference requests to the Tritonserver and captures the response.
     pipeline.add_stage(TritonInferenceStage(config, model_name=model_name, server_url=server_url))
@@ -154,6 +163,8 @@ def run_pipeline(
     # Add a monitor stage.
     # This stage logs the metrics (inf/sec) from the above stage.
     pipeline.add_stage(MonitorStage(config, description="Inference rate", unit="inf"))
+
+    pipeline.add_stage(TriggerStage(config))
 
     # Add a add classification stage.
     # This stage adds detected classifications to each message.
@@ -163,6 +174,8 @@ def run_pipeline(
     # This stage logs the metrics (msg/sec) from the above stage.
     pipeline.add_stage(MonitorStage(config, description="Add classification rate", unit="add-class"))
 
+    pipeline.add_stage(TriggerStage(config))
+
     # Add a serialize stage.
     # This stage includes & excludes columns from messages.
     pipeline.add_stage(SerializeStage(config))
@@ -170,6 +183,8 @@ def run_pipeline(
     # Add a monitor stage.
     # This stage logs the metrics (msg/sec) from the above stage.
     pipeline.add_stage(MonitorStage(config, description="Serialize rate", unit="ser"))
+
+    pipeline.add_stage(TriggerStage(config))
 
     # Add a write to file stage.
     # This stage writes all messages to a file.
