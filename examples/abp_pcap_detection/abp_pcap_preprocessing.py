@@ -82,103 +82,106 @@ class AbpPcapPreprocessingStage(PreprocessBaseStage):
                           req_cols: typing.List[str]) -> ControlMessage:
         meta = msg.payload()
         assert meta is not None, "Payload is None"
-        orig_df = meta.get_data()
+        # orig_df = meta.get_data()
+        with meta.mutable_dataframe() as orig_df:
 
-        # Converts the int flags field into a binary string
-        flags_bin_series = orig_df["flags"].to_pandas().apply(lambda x: format(int(x), "05b"))
+            # Converts the int flags field into a binary string
+            flags_bin_series = orig_df["flags"].to_pandas().apply(lambda x: format(int(x), "05b"))
 
-        # Expand binary string into an array
-        df = cudf.DataFrame(np.vstack(flags_bin_series.str.findall("[0-1]")).astype("int8"), index=orig_df.index)
+            # Expand binary string into an array
+            df = cudf.DataFrame(np.vstack(flags_bin_series.str.findall("[0-1]")).astype("int8"), index=orig_df.index)
 
-        # adding [ack, psh, rst, syn, fin] details from the binary flag
-        rename_cols_dct = {0: "ack", 1: "psh", 2: "rst", 3: "syn", 4: "fin"}
-        df = df.rename(columns=rename_cols_dct)
+            # adding [ack, psh, rst, syn, fin] details from the binary flag
+            rename_cols_dct = {0: "ack", 1: "psh", 2: "rst", 3: "syn", 4: "fin"}
+            df = df.rename(columns=rename_cols_dct)
 
-        df["flags_bin"] = flags_bin_series
-        df["timestamp"] = orig_df["timestamp"].astype("int64")
+            df["flags_bin"] = flags_bin_series
+            df["timestamp"] = orig_df["timestamp"].astype("int64")
 
-        def round_time_kernel(timestamp, rollup_time, secs):
-            for i, time in enumerate(timestamp):
-                x = time % secs
-                y = 1 - (x / secs)
-                delta = y * secs
-                rollup_time[i] = time + delta
+            def round_time_kernel(timestamp, rollup_time, secs):
+                for i, time in enumerate(timestamp):
+                    x = time % secs
+                    y = 1 - (x / secs)
+                    delta = y * secs
+                    rollup_time[i] = time + delta
 
-        df = df.apply_rows(
-            round_time_kernel,
-            incols=["timestamp"],
-            outcols={"rollup_time": np.int64},
-            kwargs={"secs": 60000000},
-        )
+            df = df.apply_rows(
+                round_time_kernel,
+                incols=["timestamp"],
+                outcols={"rollup_time": np.int64},
+                kwargs={"secs": 60000000},
+            )
 
-        df["rollup_time"] = cudf.to_datetime(df["rollup_time"], unit="us").dt.strftime("%Y-%m-%d %H:%M")
+            df["rollup_time"] = cudf.to_datetime(df["rollup_time"], unit="us").dt.strftime("%Y-%m-%d %H:%M")
 
-        # creating flow_id "src_ip:src_port=dst_ip:dst_port"
-        df["flow_id"] = (orig_df["src_ip"] + ":" + orig_df["src_port"].astype("str") + "=" + orig_df["dest_ip"] + ":" +
-                         orig_df["dest_port"].astype("str"))
-        agg_dict = {
-            "ack": "sum",
-            "psh": "sum",
-            "rst": "sum",
-            "syn": "sum",
-            "fin": "sum",
-            "data_len": "sum",
-            "flow_id": "count",
-        }
+            # creating flow_id "src_ip:src_port=dst_ip:dst_port"
+            df["flow_id"] = (orig_df["src_ip"] + ":" + orig_df["src_port"].astype("str") + "=" + orig_df["dest_ip"] +
+                             ":" + orig_df["dest_port"].astype("str"))
+            agg_dict = {
+                "ack": "sum",
+                "psh": "sum",
+                "rst": "sum",
+                "syn": "sum",
+                "fin": "sum",
+                "data_len": "sum",
+                "flow_id": "count",
+            }
 
-        df["data_len"] = orig_df["data_len"].astype("int16")
+            df["data_len"] = orig_df["data_len"].astype("int16")
 
-        # group by operation
-        grouped_df = df.groupby(["rollup_time", "flow_id"]).agg(agg_dict)
+            # group by operation
+            grouped_df = df.groupby(["rollup_time", "flow_id"]).agg(agg_dict)
 
-        # Assumption: Each flow corresponds to a single packet flow
-        # Given that the roll-up is on 1 minute, packets-per-minute(ppm)=number of flows
-        grouped_df.rename(columns={"flow_id": "ppm"}, inplace=True)
-        grouped_df.reset_index(inplace=True)
+            # Assumption: Each flow corresponds to a single packet flow
+            # Given that the roll-up is on 1 minute, packets-per-minute(ppm)=number of flows
+            grouped_df.rename(columns={"flow_id": "ppm"}, inplace=True)
+            grouped_df.reset_index(inplace=True)
 
-        # bpp - Bytes per packet per flow. In the absence of data on number-of-packets
-        # and the assumption that the flow and packet are the same, bpp=bytes/packets
-        grouped_df["bpp"] = grouped_df["data_len"] / grouped_df["ppm"]
-        grouped_df["all"] = (grouped_df["ack"] + grouped_df["psh"] + grouped_df["rst"] + grouped_df["syn"] +
-                             grouped_df["fin"])
+            # bpp - Bytes per packet per flow. In the absence of data on number-of-packets
+            # and the assumption that the flow and packet are the same, bpp=bytes/packets
+            grouped_df["bpp"] = grouped_df["data_len"] / grouped_df["ppm"]
+            grouped_df["all"] = (grouped_df["ack"] + grouped_df["psh"] + grouped_df["rst"] + grouped_df["syn"] +
+                                 grouped_df["fin"])
 
-        # ackpush/all - Number of flows with ACK+PUSH flags to all flows
-        grouped_df["ackpush/all"] = (grouped_df["ack"] + grouped_df["psh"]) / grouped_df["all"]
+            # ackpush/all - Number of flows with ACK+PUSH flags to all flows
+            grouped_df["ackpush/all"] = (grouped_df["ack"] + grouped_df["psh"]) / grouped_df["all"]
 
-        # rst/all - Number of flows with RST flag to all flows
-        # syn/all - Number of flows with SYN flag to all flows
-        # fin/all - Number of flows with FIN flag to all flows
-        for col in ["rst", "syn", "fin"]:
-            dst_col = f"{col}/all"
-            grouped_df[dst_col] = grouped_df[col] / grouped_df["all"]
+            # rst/all - Number of flows with RST flag to all flows
+            # syn/all - Number of flows with SYN flag to all flows
+            # fin/all - Number of flows with FIN flag to all flows
+            for col in ["rst", "syn", "fin"]:
+                dst_col = f"{col}/all"
+                grouped_df[dst_col] = grouped_df[col] / grouped_df["all"]
 
-        # Adding index column to retain the order of input messages.
-        df["idx"] = df.index
+            # Adding index column to retain the order of input messages.
+            df["idx"] = df.index
 
-        df = df[["rollup_time", "flow_id", "idx"]]
+            df = df[["rollup_time", "flow_id", "idx"]]
 
-        # Joining grouped dataframe entries with input dataframe entries to match input messages count.
-        merged_df = df.merge(
-            grouped_df,
-            left_on=["rollup_time", "flow_id"],
-            right_on=["rollup_time", "flow_id"],
-            how="left",
-            suffixes=("_left", ""),
-        )
+            # Joining grouped dataframe entries with input dataframe entries to match input messages count.
+            merged_df = df.merge(
+                grouped_df,
+                left_on=["rollup_time", "flow_id"],
+                right_on=["rollup_time", "flow_id"],
+                how="left",
+                suffixes=("_left", ""),
+            )
 
-        merged_df = merged_df.sort_values("idx")
+            merged_df = merged_df.sort_values("idx")
 
-        del df, grouped_df
+            del df, grouped_df
 
-        # Convert the dataframe to cupy the same way cuml does
-        # Explicity casting to float32 to match the model's input, and setting row-major as required by Triton
-        data = cp.asarray(merged_df[fea_cols].to_cupy(), order='C', dtype=cp.float32)
-        count = data.shape[0]
+            # Convert the dataframe to cupy the same way cuml does
+            # Explicity casting to float32 to match the model's input, and setting row-major as required by Triton
+            data = cp.asarray(merged_df[fea_cols].to_cupy(), order='C', dtype=cp.float32)
+            count = data.shape[0]
 
-        for col in req_cols:
-            meta.set_data(col, merged_df[col])
+            # for col in req_cols:
+            #     meta.set_data(col, merged_df[col])
 
-        del merged_df
+            orig_df[req_cols] = merged_df[req_cols]
+
+            del merged_df
 
         seq_ids = cp.zeros((count, 3), dtype=cp.uint32)
         seq_ids[:, 0] = cp.arange(0, count, dtype=cp.uint32)
