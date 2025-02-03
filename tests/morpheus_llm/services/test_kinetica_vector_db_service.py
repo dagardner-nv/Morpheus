@@ -21,10 +21,10 @@ import string
 
 import numpy as np
 import pytest
+
 import cudf
 
 from morpheus_llm.service.vdb.kinetica_vector_db_service import KineticaVectorDBService
-
 
 
 @pytest.mark.kinetica
@@ -42,7 +42,7 @@ def test_create_and_drop_collection(kinetica_type: list[list], kinetica_service:
     kinetica_service.drop(collection_name)
 
     # Create a collection and check if it exists.
-    kinetica_service.create(collection_name, kinetica_type)
+    kinetica_service.create(collection_name, table_type=kinetica_type)
     assert kinetica_service.has_store_object(collection_name)
 
     # Drop the collection and check if it no longer exists.
@@ -60,7 +60,7 @@ def test_insert_and_retrieve_by_keys(kinetica_service: KineticaVectorDBService,
     kinetica_service.drop(collection_name)
 
     # Create a collection.
-    kinetica_service.create(collection_name, kinetica_type)
+    kinetica_service.create(collection_name, table_type=kinetica_type)
 
     # Insert data into the collection.
     response = kinetica_service.insert(collection_name, kinetica_data)
@@ -83,7 +83,7 @@ def test_query(kinetica_service: KineticaVectorDBService, kinetica_type: list[li
     kinetica_service.drop(collection_name)
 
     # Create a collection.
-    kinetica_service.create(collection_name, kinetica_type)
+    kinetica_service.create(collection_name, table_type=kinetica_type)
 
     # Insert data into the collection.
     kinetica_service.insert(collection_name, kinetica_data)
@@ -110,7 +110,7 @@ async def test_similarity_search_with_data(kinetica_service: KineticaVectorDBSer
     kinetica_service.drop(collection_name)
 
     # Create a collection.
-    kinetica_service.create(collection_name, kinetica_type)
+    kinetica_service.create(collection_name, table_type=kinetica_type)
 
     # Insert data to the collection.
     kinetica_service.insert(collection_name, kinetica_data)
@@ -123,8 +123,8 @@ async def test_similarity_search_with_data(kinetica_service: KineticaVectorDBSer
 
     # Perform a search in the collection.
     similarity_search_coroutine = await kinetica_service.similarity_search(collection_name,
-                                                                         embeddings=search_vec,
-                                                                         expr=expr)
+                                                                           embeddings=search_vec,
+                                                                           expr=expr)
     search_result = await similarity_search_coroutine
 
     assert len(search_result[0]) == 2
@@ -142,7 +142,7 @@ def test_count(kinetica_service: KineticaVectorDBService, kinetica_type: list[li
     kinetica_service.drop(collection_name)
 
     # Create a collection.
-    kinetica_service.create(collection_name, kinetica_type)
+    kinetica_service.create(collection_name, table_type=kinetica_type)
 
     # Insert data into the collection.
     kinetica_service.insert(collection_name, kinetica_data)
@@ -166,14 +166,14 @@ def test_overwrite_collection_on_create(kinetica_service: KineticaVectorDBServic
     kinetica_service.drop(collection_name)
 
     # Create a collection.
-    kinetica_service.create(collection_name, kinetica_type)
+    kinetica_service.create(collection_name, table_type=kinetica_type)
 
     # Insert data to the collection.
     response1 = kinetica_service.insert(collection_name, kinetica_data)
     assert response1["insert_count"] == len(kinetica_data)
 
     # Create the same collection again with overwrite=True.
-    kinetica_service.create(collection_name, kinetica_type, overwrite=True)
+    kinetica_service.create(collection_name, table_type=kinetica_type, overwrite=True)
 
     # Insert different data into the collection.
     data2 = [{"id": i, "embeddings": [i / 10] * 3, "age": 26 + i} for i in range(10)]
@@ -190,7 +190,6 @@ def test_overwrite_collection_on_create(kinetica_service: KineticaVectorDBServic
     kinetica_service.drop(collection_name)
 
 
-
 @pytest.mark.kinetica
 def test_update(kinetica_service: KineticaVectorDBService, kinetica_type: list[list], kinetica_data: list[list]):
     collection_name = "test_update_collection"
@@ -199,7 +198,7 @@ def test_update(kinetica_service: KineticaVectorDBService, kinetica_type: list[l
     kinetica_service.drop(collection_name)
 
     # Create a collection with the specified schema configuration.
-    kinetica_service.create(collection_name, kinetica_type)
+    kinetica_service.create(collection_name, type == kinetica_type)
 
     # Insert data to the collection.
     kinetica_service.insert(collection_name, kinetica_data)
@@ -217,8 +216,7 @@ def test_update(kinetica_service: KineticaVectorDBService, kinetica_type: list[l
 
 
 @pytest.mark.kinetica
-def test_delete_by_keys(kinetica_service: KineticaVectorDBService,
-                        kinetica_type: list[list],
+def test_delete_by_keys(kinetica_service: KineticaVectorDBService, kinetica_type: list[list],
                         kinetica_data: list[list]):
     collection_name = "test_delete_by_keys_collection"
 
@@ -226,7 +224,7 @@ def test_delete_by_keys(kinetica_service: KineticaVectorDBService,
     kinetica_service.drop(collection_name)
 
     # Create a collection.
-    kinetica_service.create(collection_name, kinetica_type)
+    kinetica_service.create(collection_name, table_type=kinetica_type)
 
     # Insert data into the collection.
     kinetica_service.insert(collection_name, kinetica_data)
@@ -254,7 +252,7 @@ def test_delete(kinetica_service: KineticaVectorDBService, kinetica_type: list[l
     kinetica_service.drop(collection_name)
 
     # Create a collection.
-    kinetica_service.create(collection_name, kinetica_type)
+    kinetica_service.create(collection_name, table_type=kinetica_type)
 
     # Insert data into the collection.
     kinetica_service.insert(collection_name, kinetica_data)
@@ -299,10 +297,11 @@ def test_create_from_dataframe(kinetica_service: KineticaVectorDBService):
     kinetica_service.drop(collection_name)
 
 
-
 @pytest.mark.kinetica
 @pytest.mark.slow
-def test_insert_dataframe(kinetica_service: KineticaVectorDBService, kinetica_type: list[list], kinetica_data: list[list]):
+def test_insert_dataframe(kinetica_service: KineticaVectorDBService,
+                          kinetica_type: list[list],
+                          kinetica_data: list[list]):
     num_rows = len(kinetica_data)
     collection_name = "test_insert_dataframe"
 
@@ -310,14 +309,14 @@ def test_insert_dataframe(kinetica_service: KineticaVectorDBService, kinetica_ty
     kinetica_service.drop(collection_name)
 
     # Create a collection.
-    kinetica_service.create(collection_name, kinetica_type)
+    kinetica_service.create(collection_name, table_type=kinetica_type)
     import pandas as pd
     df = pd.DataFrame(kinetica_data, columns=["id", "embeddings", "metadata"])
 
     kinetica_service.insert_dataframe(collection_name, df)
 
     # Retrieve inserted data by primary keys.
-    retrieved_data = kinetica_service.retrieve_by_keys(collection_name, list(range(1, num_rows+1)))
+    retrieved_data = kinetica_service.retrieve_by_keys(collection_name, list(range(1, num_rows + 1)))
     assert len(retrieved_data) == len(kinetica_data)
 
     # Clean up the collection.

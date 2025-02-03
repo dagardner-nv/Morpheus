@@ -22,9 +22,16 @@ import typing
 from collections import OrderedDict
 from functools import wraps
 
-from gpudb import GPUdb, GPUdbTable, GPUdbRecordColumn, GPUdbRecordType, GPUdbException, GPUdbSqlIterator
 import sqlparse
-from sqlparse.sql import IdentifierList, Identifier, Token
+from gpudb import GPUdb
+from gpudb import GPUdbException
+from gpudb import GPUdbRecordColumn
+from gpudb import GPUdbRecordType
+from gpudb import GPUdbSqlIterator
+from gpudb import GPUdbTable
+from sqlparse.sql import Identifier
+from sqlparse.sql import IdentifierList
+from sqlparse.sql import Token
 from sqlparse.tokens import Keyword
 
 from morpheus.io.utils import cudf_string_cols_exceed_max_bytes
@@ -53,6 +60,7 @@ class DistanceStrategy(str, enum.Enum):
     COSINE = "cosine"
     MAX_INNER_PRODUCT = "inner"
 
+
 class Dimension(int, enum.Enum):
     """Some default dimensions for known embeddings."""
 
@@ -60,6 +68,7 @@ class Dimension(int, enum.Enum):
 
 
 DEFAULT_DISTANCE_STRATEGY = DistanceStrategy.EUCLIDEAN
+
 
 class KineticaVectorDBResourceService(VectorDBResourceService):
     """
@@ -84,7 +93,7 @@ class KineticaVectorDBResourceService(VectorDBResourceService):
         self._name = name
         self._client = client
 
-        self._collection =  GPUdbTable(name=self._name, db=client)
+        self._collection = GPUdbTable(name=self._name, db=client)
         self._record_type = self._collection.get_table_type()
         self._fields: list[GPUdbRecordColumn] = self._record_type.columns
         self._description = self.describe()
@@ -102,7 +111,6 @@ class KineticaVectorDBResourceService(VectorDBResourceService):
                 if not field.column_properties[1] == "primary_key":
                     self._fillna_fields_dict[field.name] = field.column_type
 
-
     def insert(self, data: list[list] | list[dict], **kwargs: dict[str, typing.Any]) -> dict:
         """
         Insert data into the vector database.
@@ -119,10 +127,10 @@ class KineticaVectorDBResourceService(VectorDBResourceService):
         dict
             Returns response content as a dictionary.
         """
-        options = kwargs.get( "options", None )
-        if options is not None: # if given, remove from kwargs
-            kwargs.pop( "options" )
-        else: # no option given; use an empty dict
+        options = kwargs.get("options", None)
+        if options is not None:  # if given, remove from kwargs
+            kwargs.pop("options")
+        else:  # no option given; use an empty dict
             options = {}
 
         result = self._collection.insert_records(data, options=options)
@@ -178,13 +186,11 @@ class KineticaVectorDBResourceService(VectorDBResourceService):
         description: dict[str, object] = {}
 
         for col in record_type.columns:
-            description[col.name] = (
-                col.column_type,
-                col.is_nullable,
-                col.is_vector(),
-                col.column_properties,
-                "primary_key" if "primary_key" in col.column_properties else ""
-            )
+            description[col.name] = (col.column_type,
+                                     col.is_nullable,
+                                     col.is_vector(),
+                                     col.column_properties,
+                                     "primary_key" if "primary_key" in col.column_properties else "")
 
         return description
 
@@ -285,18 +291,14 @@ class KineticaVectorDBResourceService(VectorDBResourceService):
         """Query the Kinetica table."""
 
         json_filter = json.dumps(filter) if filter is not None else None
-        where_clause = (
-            f" where '{json_filter}' = JSON(metadata) "
-            if json_filter is not None
-            else ""
-        )
+        where_clause = (f" where '{json_filter}' = JSON(metadata) " if json_filter is not None else "")
 
         embedding_str = f"[{','.join([str(x) for x in embedding])}]"
 
         dist_strategy = DEFAULT_DISTANCE_STRATEGY
 
         query_string = f"""
-                SELECT {', '.join(output_fields)}, {dist_strategy}(embedding, '{embedding_str}') 
+                SELECT {', '.join(output_fields)}, {dist_strategy}(embedding, '{embedding_str}')
                 as distance, {self._vector_field}
                 FROM {self._collection_name}
                 {where_clause}
@@ -328,9 +330,10 @@ class KineticaVectorDBResourceService(VectorDBResourceService):
         Returns:
             List of records most similar to the query vector.
         """
-        docs = self.similarity_search_with_score_by_vector(
-            embedding=embedding, output_fields=output_fields, k=k, filter=filter
-        )
+        docs = self.similarity_search_with_score_by_vector(embedding=embedding,
+                                                           output_fields=output_fields,
+                                                           k=k,
+                                                           filter=filter)
         return docs
 
     def similarity_search_with_score_by_vector(
@@ -348,7 +351,6 @@ class KineticaVectorDBResourceService(VectorDBResourceService):
 
         self.logger.error(resp["status_info"]["message"])
         return []
-
 
     async def similarity_search(self,
                                 embeddings: list[list[float]],
@@ -378,12 +380,14 @@ class KineticaVectorDBResourceService(VectorDBResourceService):
         output_fields = [x.name for x in self._fields if x.name != self._vector_field]
         search_filter = kwargs.get("filter", "")
 
-        results: list[list[dict]] = [self.similarity_search_by_vector(
-            embedding=embedding,
-            output_fields=output_fields,
-            k=k,
-            filter=search_filter,
-        ) for embedding in embeddings]
+        results: list[list[dict]] = [
+            self.similarity_search_by_vector(
+                embedding=embedding,
+                output_fields=output_fields,
+                k=k,
+                filter=search_filter,
+            ) for embedding in embeddings
+        ]
 
         return results
 
@@ -419,26 +423,26 @@ class KineticaVectorDBResourceService(VectorDBResourceService):
             Returns result of the updated operation stats.
         """
 
-        options = kwargs.get( "options", None )
-        if options is not None: # if given, remove from kwargs
-            kwargs.pop( "options" )
-        else: # no option given; use an empty dict
+        options = kwargs.get("options", None)
+        if options is not None:  # if given, remove from kwargs
+            kwargs.pop("options")
+        else:  # no option given; use an empty dict
             options = {}
 
-        expressions = kwargs.get( "expressions", [] )
-        if expressions is not None: # if given, remove from kwargs
+        expressions = kwargs.get("expressions", [])
+        if expressions is not None:  # if given, remove from kwargs
             if not isinstance(expressions, list):
                 raise GPUdbException("'expressions' must be of type 'list' ...")
-            kwargs.pop( "expressions" )
-        else: # no option given; use an empty dict
+            kwargs.pop("expressions")
+        else:  # no option given; use an empty dict
             raise GPUdbException("Update 'expressions' must be given ...")
 
-        new_values_maps = kwargs.get( "new_values_maps", None )
-        if new_values_maps is not None: # if given, remove from kwargs
+        new_values_maps = kwargs.get("new_values_maps", None)
+        if new_values_maps is not None:  # if given, remove from kwargs
             if not isinstance(new_values_maps, (list, dict)):
                 raise GPUdbException("'new_value_maps' should either be a 'list of dicts' or a dict ...")
-            kwargs.pop( "new_values_maps" )
-        else: # no option given; use an empty dict
+            kwargs.pop("new_values_maps")
+        else:  # no option given; use an empty dict
             raise GPUdbException("'new_values_maps' must be given ...")
 
         if len(expressions) != len(new_values_maps):
@@ -447,7 +451,11 @@ class KineticaVectorDBResourceService(VectorDBResourceService):
         records_to_insert = kwargs.get("records_to_insert", [])
         records_to_insert_str = kwargs.get("records_to_insert_str", [])
 
-        result = self._collection.update_records(expressions, new_values_maps, records_to_insert, records_to_insert_str, options=options)
+        result = self._collection.update_records(expressions,
+                                                 new_values_maps,
+                                                 records_to_insert,
+                                                 records_to_insert_str,
+                                                 options=options)
 
         return self._update_delete_result_to_dict(result=result)
 
@@ -467,10 +475,10 @@ class KineticaVectorDBResourceService(VectorDBResourceService):
         dict[str, typing.Any]
             Returns result of the given keys that are deleted from the Kinetica table.
         """
-        options = kwargs.get( "options", None )
-        if options is not None: # if given, remove from kwargs
-            kwargs.pop( "options" )
-        else: # no option given; use an empty dict
+        options = kwargs.get("options", None)
+        if options is not None:  # if given, remove from kwargs
+            kwargs.pop("options")
+        else:  # no option given; use an empty dict
             options = {}
 
         result = self._collection.delete_records(expressions=[expr], options=options)
@@ -613,12 +621,13 @@ class KineticaVectorDBService(VectorDBService):
         Alias for the Kinetica connection, by default "default".
     """
 
-    def __init__(self,
-                 uri: str,
-                 user: str = "",
-                 password: str = "",
-                 kinetica_schema = "",
-                 ):
+    def __init__(
+        self,
+        uri: str,
+        user: str = "",
+        password: str = "",
+        kinetica_schema="",
+    ):
         options = GPUdb.Options()
         options.skip_ssl_cert_verification = True
         options.username = user
@@ -635,9 +644,9 @@ class KineticaVectorDBService(VectorDBService):
         @param kwargs:
         @return:
         """
-        self._collection_name = f"{self.schema}.{name}" if self.schema is not None and len(self.schema) > 0 else f"ki_home.{name}"
-        return KineticaVectorDBResourceService(name=self._collection_name,
-                                               client=self._client)
+        self._collection_name = f"{self.schema}.{name}" if self.schema is not None and len(
+            self.schema) > 0 else f"ki_home.{name}"
+        return KineticaVectorDBResourceService(name=self._collection_name, client=self._client)
 
     @property
     def collection_name(self):
@@ -680,7 +689,7 @@ class KineticaVectorDBService(VectorDBService):
         """
         logger.debug("Creating Kinetica table: %s, overwrite=%s, kwargs=%s", name, overwrite, kwargs)
 
-        table_type: list[list[str]] = kwargs.get("type", [])
+        table_type: list[list[str]] = kwargs.get("table_type", [])
         if not self.has_store_object(name) and (table_type is None or len(table_type) == 0):
             raise GPUdbException("Table must either be existing or a type must be given to create the table ...")
 
@@ -693,7 +702,6 @@ class KineticaVectorDBService(VectorDBService):
                 self.drop(name)
 
             GPUdbTable(table_type, name, options=options, db=self._client)
-
 
     def create_from_dataframe(self,
                               name: str,
@@ -741,8 +749,8 @@ class KineticaVectorDBService(VectorDBService):
         RuntimeError
             If the table not exists.
         """
-        options = kwargs.get( "options", None )
-        if options is None: # if given, remove from kwargs
+        options = kwargs.get("options", None)
+        if options is None:  # if given, remove from kwargs
             options = {}
             kwargs["options"] = options
 
