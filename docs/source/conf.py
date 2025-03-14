@@ -173,43 +173,8 @@ breathe_default_project = "morpheus"
 
 # This will be set when invoked by cmake
 build_dir = os.environ.get('BUILD_DIR', './')
-doxygen_tmp_dir = os.path.join(build_dir, "_doxygen/xml")
+doxygen_tmp_dir = os.path.join(build_dir, "doxygen")
 breathe_projects = {"morpheus": doxygen_tmp_dir}
-
-exhale_args = {
-    "containmentFolder":
-        "./_lib",
-    "rootFileName":
-        "index.rst",
-    "doxygenStripFromPath":
-        "../../",
-    "rootFileTitle":
-        "C++ API",
-    "createTreeView":
-        True,
-    "exhaleExecutesDoxygen":
-        True,
-    "exhaleDoxygenStdin":
-        textwrap.dedent(r'''
-        BRIEF_MEMBER_DESC = YES
-        BUILTIN_STL_SUPPORT = YES
-        DOT_IMAGE_FORMAT = svg
-        EXCLUDE_PATTERNS = */tests/* */include/nvtext/* */__pycache__/* */doca/*
-        EXCLUDE_SYMBOLS = "@*" "cudf*" "py::literals" "RdKafka" "mrc*" "std*" "PYBIND11_NAMESPACE*"
-        EXTENSION_MAPPING = cu=C++ cuh=C++
-        EXTRACT_ALL = YES
-        FILE_PATTERNS = *.c *.cc *.cpp *.h *.hpp *.cu *.cuh *.md
-        HAVE_DOT = YES
-        HIDE_UNDOC_MEMBERS = NO
-        INPUT = ../../python/morpheus/morpheus/_lib ../../python/morpheus_llm/morpheus_llm/_lib
-        INTERACTIVE_SVG = YES
-        SOURCE_BROWSER = YES
-        ENABLE_PREPROCESSING = YES
-        MACRO_EXPANSION = YES
-        EXPAND_ONLY_PREDEF = NO
-        PREDEFINED += "MORPHEUS_EXPORT="
-    ''')
-}
 
 # Include Python objects as they appear in source files
 # Default: alphabetically ('alphabetical')

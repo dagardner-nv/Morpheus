@@ -95,7 +95,7 @@ Modifying Morpheus
    :hidden:
 
    py_api
-   _lib/index
+   cpp_api
 
 .. toctree::
    :caption: Morpheus Stages
