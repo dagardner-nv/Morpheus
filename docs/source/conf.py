@@ -27,11 +27,15 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 
+import filecmp
+import glob
 import importlib
 import os
 import sys
+import tempfile
 import textwrap
 import warnings
+import xml.etree.ElementTree as ET
 
 import packaging
 
@@ -101,6 +105,68 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.linkcode',
 ]
+
+# # Preprocess doxygen xml for compatibility with latest Breathe
+# def clean_definitions(root):
+#     # Breathe can't handle SFINAE properly:
+#     # https://github.com/breathe-doc/breathe/issues/624
+#     seen_ids = set()
+#     for sectiondef in root.findall(".//sectiondef"):
+#         for memberdef in sectiondef.findall("./memberdef"):
+#             id_ = memberdef.get("id")
+#             for tparamlist in memberdef.findall("./templateparamlist"):
+#                 for param in tparamlist.findall("./param"):
+#                     for type_ in param.findall("./type"):
+#                         # CUDF_ENABLE_IF or std::enable_if
+#                         if "enable_if" in ET.tostring(type_).decode().lower():
+#                             if id_ not in seen_ids:
+#                                 # If this is the first time we're seeing this function,
+#                                 # just remove the template parameter.
+#                                 seen_ids.add(id_)
+#                                 tparamlist.remove(param)
+#                             else:
+#                                 # Otherwise, remove the overload altogether and just
+#                                 # rely on documenting one of the SFINAE overloads.
+#                                 sectiondef.remove(memberdef)
+#                             break
+
+#                         # In addition to enable_if, check for overloads set up by
+#                         # ...*=nullptr.
+#                         for type_ in param.findall("./defval"):
+#                             if "nullptr" in ET.tostring(type_).decode():
+#                                 try:
+#                                     tparamlist.remove(param)
+#                                 except ValueError:
+#                                     # May have already been removed in above,
+#                                     # so skip.
+#                                     pass
+#                                 break
+
+#     # All of these in type declarations cause Breathe to choke.
+#     # For friend, see https://github.com/breathe-doc/breathe/issues/916
+#     strings_to_remove = (
+#         "__forceinline__",
+#         "CUDF_HOST_DEVICE",
+#         "decltype(auto)",
+#         "friend",
+#     )
+#     for node in root.iter():
+#         for string in strings_to_remove:
+#             if node.text is not None:
+#                 node.text = node.text.replace(string, "")
+#             if node.tail is not None:
+#                 node.tail = node.tail.replace(string, "")
+
+# def clean_all_xml_files(path):
+#     for fn in glob.glob(os.path.join(path, "*.xml")):
+#         tree = ET.parse(fn)
+#         clean_definitions(tree.getroot())
+#         with tempfile.NamedTemporaryFile() as tmp_fn:
+#             tree.write(tmp_fn.name)
+#             # Only write files that have actually changed.
+#             if not filecmp.cmp(tmp_fn.name, fn):
+#                 tree.write(fn)
+
 
 # Breathe Configuration
 breathe_default_project = "morpheus"

@@ -25,12 +25,19 @@ set(SPHINX_ARGS -j auto -T)
 set(SPHINX_HTML_ARGS -b html ${SPHINX_ARGS})
 set(SPHINX_LINKCHECK_ARGS -b linkcheck ${SPHINX_ARGS})
 
+add_custom_target(${PROJECT_NAME}_doxygen_docs
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/doxygen/Doxyfile
+  COMMENT "Custom command for building doxygen docs."
+  DEPENDS  morpheus-package-outputs morpheus_llm-package-outputs morpheus_dfp-package-outputs
+)
+
 add_custom_target(${PROJECT_NAME}_docs
    COMMAND
       BUILD_DIR=${CMAKE_CURRENT_BINARY_DIR} ${SPHINX_EXECUTABLE} ${SPHINX_HTML_ARGS} ${SPHINX_SOURCE} ${SPHINX_BUILD}
    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
    COMMENT "Generating documentation with Sphinx"
-   DEPENDS morpheus-package-outputs morpheus_llm-package-outputs morpheus_dfp-package-outputs
+   DEPENDS ${PROJECT_NAME}_doxygen_docs
 )
 
 add_custom_target(${PROJECT_NAME}_docs_linkcheck
