@@ -35,4 +35,4 @@ with ir.as_file(ir.files(anchor=package_name).joinpath(file_name)) as requiremen
     subprocess.call(f"pip install -r {requirements_file}".split())
 EOF
 
-pytest tests/${package_name}
+pytest -s -v tests/${package_name}
