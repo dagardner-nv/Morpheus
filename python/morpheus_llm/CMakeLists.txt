@@ -18,7 +18,6 @@ list(APPEND CMAKE_MESSAGE_CONTEXT "morpheus_llm")
 # Save the root of the python for relative paths
 set(MORPHEUS_LLM_PY_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/..)
 
-
 # #################################
 # #### Morpheus Python Setup ######
 # #################################
@@ -45,7 +44,7 @@ if(MORPHEUS_PYTHON_PERFORM_INSTALL)
   list(APPEND extra_args "INSTALL_WHEEL")
 endif()
 
-file(GLOB morpheus_llm_requirement_files "${CMAKE_CURRENT_SOURCE_DIR}/morpheus_llm/requirements*")
+file(GLOB morpheus_llm_requirement_files "${CMAKE_CURRENT_SOURCE_DIR}/morpheus_llm/*.yaml")
 morpheus_utils_add_python_sources(${morpheus_llm_requirement_files})
 
 morpheus_utils_build_python_package(morpheus_llm ${extra_args})

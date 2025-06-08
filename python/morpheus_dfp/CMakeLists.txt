@@ -18,7 +18,6 @@ list(APPEND CMAKE_MESSAGE_CONTEXT "morpheus_dfp")
 # Save the root of the python for relative paths
 set(MORPHEUS_DFP_PY_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/..)
 
-
 # #####################################
 # #### Morpheus DFP Python Setup ######
 # #####################################
@@ -41,7 +40,7 @@ if(MORPHEUS_PYTHON_PERFORM_INSTALL)
   list(APPEND extra_args "INSTALL_WHEEL")
 endif()
 
-file(GLOB morpheus_dfp_requirement_files "${CMAKE_CURRENT_SOURCE_DIR}/morpheus_dfp/requirements*")
+file(GLOB morpheus_dfp_requirement_files "${CMAKE_CURRENT_SOURCE_DIR}/morpheus_dfp/*.yaml")
 morpheus_utils_add_python_sources(${morpheus_dfp_requirement_files})
 
 morpheus_utils_build_python_package(morpheus_dfp ${extra_args})

@@ -19,7 +19,6 @@ list(APPEND CMAKE_MESSAGE_CONTEXT "morpheus")
 # Where is this used, fixme
 set(MORPHEUS_PY_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/..)
 
-
 # #################################
 # #### Morpheus Python Setup ######
 # #################################
@@ -50,7 +49,7 @@ endif()
 file(GLOB morpheus_data_files "${CMAKE_CURRENT_SOURCE_DIR}/morpheus/data/*")
 morpheus_utils_add_python_sources(${morpheus_data_files})
 
-file(GLOB morpheus_requirement_files "${CMAKE_CURRENT_SOURCE_DIR}/morpheus/requirements*")
+file(GLOB morpheus_requirement_files "${CMAKE_CURRENT_SOURCE_DIR}/morpheus/*.yaml")
 morpheus_utils_add_python_sources(${morpheus_requirement_files})
 
 morpheus_utils_build_python_package(morpheus ${extra_args})
