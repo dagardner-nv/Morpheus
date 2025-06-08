@@ -130,6 +130,8 @@ outputs:
         - pytest =7.4.4
       source_files:
         - dependencies.yaml
+        - python/morpheus/morpheus/morpheus_core_arch-aarch64.yaml
+        - python/morpheus/morpheus/morpheus_core_arch-x86_64.yaml
         - pyproject.toml
         - scripts/fetch_data.py
         - tests/*
