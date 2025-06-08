@@ -22,6 +22,9 @@ fi
 package_name="morpheus"
 file_name="morpheus_core_arch-$(arch).yaml"
 
+echo "************************************************"
+echo "Installing test dependencies for ${package_name} using ${file_name}"
+
 # Install requirements if they are included in the package
 python3 <<EOF
 import subprocess
@@ -34,5 +37,8 @@ file_name = "${file_name}"
 with ir.as_file(ir.files(anchor=package_name).joinpath(file_name)) as requirements_file:
     subprocess.call(f"conda env update --solver=libmamba -f {requirements_file}".split())
 EOF
+
+echo "done"
+echo "************************************************"
 
 pytest -s -v tests/${package_name}
