@@ -20,7 +20,7 @@ if [[ $(arch) == "aarch64" ]]; then
 fi
 
 package_name="morpheus_llm"
-file_name="requirements_morpheus_llm_arch-$(arch).txt"
+file_name="morpheus_llm_arch-$(arch).yaml"
 
 # Install requirements if they are included in the package
 python3 <<EOF
@@ -32,7 +32,7 @@ package_name = "${package_name}"
 file_name = "${file_name}"
 
 with ir.as_file(ir.files(anchor=package_name).joinpath(file_name)) as requirements_file:
-    subprocess.call(f"pip install -r {requirements_file}".split())
+    subprocess.call(f"conda env update --solver=libmamba -f {requirements_file}".split())
 EOF
 
 pytest tests/${package_name}
