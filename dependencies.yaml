@@ -178,8 +178,8 @@ files:
 
   # morpheus-core pip dependencies are published as a morpheus package data file
   morpheus_core:
-    output: requirements
-    requirements_dir: python/morpheus/morpheus
+    output: conda
+    conda_dir: python/morpheus/morpheus
     matrix:
       arch: [x86_64, aarch64]
     includes:
@@ -187,8 +187,8 @@ files:
 
   # morpheus-dfp pip dependencies are published as a morpheus_dfp package data file
   morpheus_dfp:
-    output: requirements
-    requirements_dir: python/morpheus_dfp/morpheus_dfp
+    output: conda
+    conda_dir: python/morpheus_dfp/morpheus_dfp
     matrix:
       arch: [x86_64, aarch64]
     includes:
@@ -196,8 +196,8 @@ files:
 
   # morpheus-llm pip dependencies are published as a morpheus_llm package data file
   morpheus_llm:
-    output: requirements
-    requirements_dir: python/morpheus_llm/morpheus_llm
+    output: conda
+    conda_dir: python/morpheus_llm/morpheus_llm
     matrix:
       arch: [x86_64, aarch64]
     includes:
@@ -469,20 +469,26 @@ dependencies:
 
   morpheus_core_pip:
     common:
-      - output_types: [requirements]
+      - output_types: [conda]
         packages:
-           - *torch-extra-index
+           - pip
+           - pip:
+             - *torch-extra-index
     specific:
-      - output_types: [requirements]
+      - output_types: [conda]
         matrices:
           - matrix:
               arch: x86_64
             packages:
-              - *torchcu
+              - pip
+              - pip:
+                - *torchcu
           - matrix:
               arch: aarch64
             packages:
-              - *torch
+              - pip
+              - pip:
+                  - *torch
 
   morpheus_llm_pip:
     common:
