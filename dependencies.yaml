@@ -176,34 +176,6 @@ files:
       - checks
       - python
 
-  # morpheus-core pip dependencies are published as a morpheus package data file
-  morpheus_core:
-    output: requirements
-    requirements_dir: python/morpheus/morpheus
-    matrix:
-      arch: [x86_64, aarch64]
-    includes:
-      - morpheus_core_pip
-
-  # morpheus-dfp pip dependencies are published as a morpheus_dfp package data file
-  morpheus_dfp:
-    output: requirements
-    requirements_dir: python/morpheus_dfp/morpheus_dfp
-    matrix:
-      arch: [x86_64, aarch64]
-    includes:
-      - morpheus_core_pip
-
-  # morpheus-llm pip dependencies are published as a morpheus_llm package data file
-  morpheus_llm:
-    output: requirements
-    requirements_dir: python/morpheus_llm/morpheus_llm
-    matrix:
-      arch: [x86_64, aarch64]
-    includes:
-      - morpheus_core_pip
-      - morpheus_llm_pip
-
   # dfp example conda dependencies
   dfp_example:
     output: conda
@@ -352,6 +324,8 @@ dependencies:
               - vale-styles-write-good
           - matrix:
               arch: aarch64
+            packages:
+              # pass
 
   docs:
     common:
@@ -407,6 +381,7 @@ dependencies:
           - python-confluent-kafka=2.6.1
           - python-graphviz
           - pluggy=1.3
+          - pytorch=2.4.0=cuda120_py312*
           - rapids-dask-dependency=25.02 # provides dask and distributed
           - requests>=2.32.3,<3
           - requests-cache=1.1
@@ -420,7 +395,6 @@ dependencies:
           - websockets
           - pip
           - pip:
-            - &torch-extra-index --extra-index-url https://download.pytorch.org/whl/cu124
             - databricks-cli < 0.100
             - databricks-connect
             - &gpudb gpudb>=7.2.2.3
@@ -434,12 +408,10 @@ dependencies:
                 # Milvus does not have arm64 builds for linux
                 - &milvus milvus==2.3.5 # update to match pymilvus when available
                 - &pymilvus pymilvus==2.3.6
-                - &torchcu torch==2.4.0+cu124
           - matrix:
               arch: aarch64
             packages:
-              - pip:
-                - &torch torch==2.4.0
+              # pass
 
   test_python_morpheus:
     common:
@@ -467,23 +439,6 @@ dependencies:
             packages:
               - pip:
                 - *pypdfium2
-
-  morpheus_core_pip:
-    common:
-      - output_types: [requirements]
-        packages:
-           - *torch-extra-index
-    specific:
-      - output_types: [requirements]
-        matrices:
-          - matrix:
-              arch: x86_64
-            packages:
-              - *torchcu
-          - matrix:
-              arch: aarch64
-            packages:
-              - *torch
 
   morpheus_llm_pip:
     common:
@@ -520,32 +475,23 @@ dependencies:
         packages:
           - morpheus-dfp=25.06
           - tini=0.19
-          - pip:
-            - *torch-extra-index
-    specific:
-      - output_types: [conda]
-        matrices:
-          - matrix:
-              arch: x86_64
-            packages:
-              - pip:
-                - *torchcu
-          - matrix:
-              arch: aarch64
-            packages:
-              - pip:
-                - *torch
 
   example-gnn:
     common:
       - output_types: [conda]
         packages:
           - &cuml cuml=25.02.*
-          - pip
-          - pip:
-            - --find-links https://data.dgl.ai/wheels/torch-2.3/repo.html
-            - --find-links https://data.dgl.ai/wheels/torch-2.4/cu124/repo.html
-            - dgl
+    specific:
+      - output_types: [conda]
+        matrices:
+          - matrix:
+              arch: x86_64
+            packages:
+              - dglteam/label/th24_cu124::dgl=2.4.0
+          - matrix:
+              arch: aarch64
+            packages:
+              - dglteam/label/th23_cpu::dgl=2.2.1
 
   example-abp-nvsmi:
     common:
@@ -569,6 +515,7 @@ dependencies:
           - pypdf=3.17.4
           - *python-docx
           - requests-toolbelt=1.0 # Transitive dep needed by nemollm, specified here to ensure we get a compatible version
+          - sentence-transformers=2.7 # using pip now instead of conda to avoid install of pytorch cpu
           - pip
           - pip:
             - *faiss-cpu
@@ -577,7 +524,7 @@ dependencies:
             - *langchain-nvidia-ai-endpoints
             - *langchain-openai
             - *nemollm
-            - sentence-transformers==2.7 # using pip now instead of conda to avoid install of pytorch cpu
+
     specific:
       - output_types: [conda]
         matrices:

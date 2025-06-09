@@ -18,7 +18,5 @@ dependencies:
 - s3fs=2024.10
 - tini=0.19
 - pip:
-  - --extra-index-url https://download.pytorch.org/whl/cu124
   - python-logging-loki
-  - torch==2.4.0
 name: dfp_example_cuda-128_arch-aarch64
