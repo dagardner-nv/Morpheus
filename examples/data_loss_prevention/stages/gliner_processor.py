@@ -261,27 +261,27 @@ class GliNERProcessor(GpuAndCpuMixin, ControlMessageStage):
 
             (model_data, all_spans, model_row_to_row_num) = self._prepare_data(rows, regex_columns)
 
-            futures = []
-            model_entities = []
-            for i in range(0, len(model_data), self._model_max_batch_size):
-                future = mrc.Future()
-                futures.append(future)
-                model_entities.append(None)
-                batch_data = model_data[i:i + self._model_max_batch_size]
+            # futures = []
+            # model_entities = []
+            # for i in range(0, len(model_data), self._model_max_batch_size):
+            #     future = mrc.Future()
+            #     futures.append(future)
+            #     model_entities.append(None)
+            #     batch_data = model_data[i:i + self._model_max_batch_size]
 
-                self.gliner_triton.process(
-                    batch_data,
-                    partial(self._infer_callback,
-                            batch_num=len(model_entities) - 1,
-                            model_entities=model_entities,
-                            future=future))
+            #     self.gliner_triton.process(
+            #         batch_data,
+            #         partial(self._infer_callback,
+            #                 batch_num=len(model_entities) - 1,
+            #                 model_entities=model_entities,
+            #                 future=future))
 
-            for future in futures:
-                future.result()
+            # for future in futures:
+            #     future.result()
 
-            dlp_findings = self._process_results(len(rows), model_entities, all_spans, model_row_to_row_num)
+            # dlp_findings = self._process_results(len(rows), model_entities, all_spans, model_row_to_row_num)
 
-            df['dlp_findings'] = dlp_findings
+            # df['dlp_findings'] = dlp_findings
 
         return msg
 

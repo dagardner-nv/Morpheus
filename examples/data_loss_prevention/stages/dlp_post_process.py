@@ -36,5 +36,7 @@ def dlp_post_process(msg: ControlMessage, *, include_privacy_masks: bool) -> Mes
     if include_privacy_masks:
         columns.append('privacy_mask')
 
-    with msg.payload().mutable_dataframe() as df:
-        return MessageMeta(df[columns])
+    # with msg.payload().mutable_dataframe() as df:
+    #     return MessageMeta(df[columns])
+
+    return msg.payload()
