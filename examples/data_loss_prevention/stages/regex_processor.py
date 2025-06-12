@@ -56,7 +56,8 @@ class RegexProcessor(GpuAndCpuMixin, ControlMessageStage):
                  *,
                  patterns: dict[str, list[str]] | None = None,
                  patterns_file: str | pathlib.Path | None = None,
-                 source_column_name: str = "source_text"):
+                 source_column_name: str = "source_text",
+                 context_window: int = 100):
         """
         Initialize with regex patterns to detect sensitive data
 
@@ -66,6 +67,7 @@ class RegexProcessor(GpuAndCpuMixin, ControlMessageStage):
         """
         super().__init__(config)
         self.source_column_name = source_column_name
+        self.context_window = context_window
         self.combined_patterns = {}
         self._df_pkg = get_df_pkg(config.execution_mode)
         self._df_class = get_df_class(config.execution_mode)
@@ -130,12 +132,39 @@ class RegexProcessor(GpuAndCpuMixin, ControlMessageStage):
                 matched_series = text_series.str.findall(pattern)
                 matched_series = matched_series.explode(ignore_index=False).dropna()
                 if len(matched_series) > 0:
-                    matched_dfs.append(self._df_class({'matches': matched_series, 'pattern_name': pattern_name}))
+                    matched_dfs.append(self._df_class({
+                        'matches': matched_series,
+                        'pattern_name': pattern_name,
+                    }))
 
-            matches = self._df_pkg.concat(matched_dfs)
+            #         temp_df = temp_df.merge(df, on=[df.index.name])
 
-            merged_df = df.merge(matches, on=[df.index.name])
-            merged_df.reset_index(drop=False, inplace=True)
+            #         span_start = temp_df[self.source_column_name].str.find_multiple(matched_series).explode(
+            #             ignore_index=False)
+            #         span_start.replace(-1, None, inplace=True)  # Replace -1 with None for no match
+            #         span_start.dropna(inplace=True)
+
+            #         print(f"temp_df ({len(temp_df)}):\n{temp_df}\n\nspan_start({len(span_start)}):\n{span_start}")
+
+            #         temp_df = temp_df.merge(self._df_class({"span_start": span_start}), on=[df.index.name])
+            #         temp_df['span_end'] = temp_df['span_start'] + temp_df['matches'].str.len()
+
+            #         matched_dfs.append(temp_df)
+
+            # merged_df = self._df_pkg.concat(matched_dfs)
+            # merged_df.reset_index(drop=False, inplace=True)
+            # context_start = (merged_df['span_start'] - self.context_window).clip(lower=0)
+            # context_end = merged_df['span_end'] + self.context_window
+            # merged_df['context_start'] = context_start
+            # merged_df['context_end'] = context_end
+            # merged_df['source_text_length'] = merged_df[self.source_column_name].str.len()
+            # merged_df['context_end'] = merged_df[['context_end', 'source_text_length']].min(axis=1)
+            # merged_df.drop(columns=['source_text_length'], inplace=True)
+            # merged_df['context'] = merged_df[self.source_column_name].str.slice_from(
+            #     merged_df['context_start'], merged_df['context_end'])
+
+            matches_df = self._df_pkg.concat(matched_dfs)
+            merged_df = df.merge(matches_df, on=[df.index.name])
 
             new_meta = MessageMeta(merged_df)
             msg.payload(new_meta)
