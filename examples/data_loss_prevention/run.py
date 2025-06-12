@@ -22,6 +22,7 @@ from stages.datasets_source import DatasetsSourceStage
 from stages.dlp_input_processor import DLPInputProcessor
 from stages.dlp_output import DLPOutput
 from stages.dlp_post_process import dlp_post_process
+from stages.gliner_preprocess import GliNERPreprocess
 from stages.gliner_processor import GliNERProcessor
 from stages.regex_processor import RegexProcessor
 from stages.risk_scorer import RiskScorer
@@ -148,6 +149,10 @@ def main(log_level: int,
     pipeline.add_stage(RegexProcessor(config, patterns_file=regex_file))
 
     pipeline.add_stage(MonitorStage(config, description="Regex Processor"))
+
+    pipeline.add_stage(GliNERPreprocess(config))
+
+    pipeline.add_stage(MonitorStage(config, description="GliNER Preprocess"))
 
     pipeline.add_stage(dlp_post_process(config, include_privacy_masks=include_privacy_masks))
     pipeline.add_stage(DLPOutput(config, filename=str(out_file), overwrite=True))

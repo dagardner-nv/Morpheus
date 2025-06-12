@@ -89,7 +89,6 @@ class GliNERProcessor(GpuAndCpuMixin, ControlMessageStage):
         self._confidence_threshold = confidence_threshold
         self.context_window = context_window
         self.fallback = fallback
-        self._needed_columns['dlp_findings'] = TypeId.STRING
         self.gliner_triton = GliNERTritonInference(server_url=server_url,
                                                    triton_model_name=triton_model_name,
                                                    model_source_dir=model_source_dir,
