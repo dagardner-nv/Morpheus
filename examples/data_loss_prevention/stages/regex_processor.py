@@ -123,6 +123,8 @@ class RegexProcessor(GpuAndCpuMixin, ControlMessageStage):
             if df.index.name is None:
                 df.index.name = "original_row"  # Ensure index has a name for consistency
 
+            df["original_row"] = df.index  # Preserve original row index
+
             text_series = df[self.source_column_name]
 
             matched_dfs = []
@@ -137,6 +139,7 @@ class RegexProcessor(GpuAndCpuMixin, ControlMessageStage):
 
             matches_df = self._df_pkg.concat(matched_dfs)
             merged_df = df.merge(matches_df, on=[df.index.name])
+            merged_df.sort_index(axis=0, inplace=True)
 
             new_meta = MessageMeta(merged_df)
             msg.payload(new_meta)

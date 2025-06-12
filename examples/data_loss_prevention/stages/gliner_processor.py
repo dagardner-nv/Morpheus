@@ -21,12 +21,12 @@ import mrc
 from mrc.core import operators as ops
 
 from morpheus.cli.register_stage import register_stage
-from morpheus.common import TypeId
 from morpheus.config import Config
 from morpheus.config import ExecutionMode
 from morpheus.messages import ControlMessage
 from morpheus.pipeline.control_message_stage import ControlMessageStage
 from morpheus.pipeline.execution_mode_mixins import GpuAndCpuMixin
+from morpheus.utils.type_aliases import DataFrameType
 
 from .gliner_triton import GliNERTritonInference
 
@@ -72,7 +72,6 @@ class GliNERProcessor(GpuAndCpuMixin, ControlMessageStage):
                  server_url: str = "localhost:8001",
                  triton_model_name: str = "gliner_bi_encoder",
                  source_column_name: str = "source_text",
-                 regex_col_prefix: str = "regex_matches_",
                  confidence_threshold: float = 0.3,
                  context_window: int = 100,
                  fallback: bool = True):
@@ -85,7 +84,6 @@ class GliNERProcessor(GpuAndCpuMixin, ControlMessageStage):
 
         self._model_max_batch_size = config.model_max_batch_size
         self.source_column_name = source_column_name
-        self._regex_col_prefix = regex_col_prefix
         self._confidence_threshold = confidence_threshold
         self.context_window = context_window
         self.fallback = fallback
@@ -105,138 +103,15 @@ class GliNERProcessor(GpuAndCpuMixin, ControlMessageStage):
     def supports_cpp_node(self) -> bool:
         return False
 
-    def _extract_contexts_from_regex_findings(self, text: str, row: dict[str, typing.Any],
-                                              regex_columns: list[str]) -> tuple[list[str], list[str], list[SpanType]]:
-        """
-        Extract text contexts around regex matches to focus SLM analysis
-
-        Args:
-            text: The full text being analyzed
-            row: The current row of the DataFrame containing regex findings
-            regex_columns: List of column names that contain regex findings
-
-        Returns:
-            A tuple containing:
-            - A list of regex findings
-            - A list of contexts extracted around the regex findings
-            - A list of spans (start, end) for each context
-        """
-        contexts = []
-        spans = []
-        context_window = self.context_window  # Characters before and after the match
-
-        # Track unique spans to avoid duplicates
-        # Pre-allocate lists and use set for O(1) lookups
-        unique_spans = set()
-        text_len = len(text)
-
-        regex_findings = []
-        for regex_col in regex_columns:
-            findings = row[regex_col]
-            if isinstance(findings, list) and len(findings) > 0:
-                regex_findings.extend(findings)
-
-            for finding in findings:
-                start = text.find(finding)
-
-                if start > -1:  # Ensure the finding was found in the text
-                    end = start + len(finding)
-
-                    # Expand the context window with single min/max calls
-                    context_start = max(0, start - context_window)
-                    context_end = min(text_len, end + context_window)
-
-                    # Only add if this span is unique
-                    span_key = (context_start, context_end)
-                    if span_key not in unique_spans:
-                        unique_spans.add(span_key)
-                        contexts.append(text[context_start:context_end])
-                        spans.append(span_key)
-                else:
-                    logger.warning("Regex finding '%s' not found in text: %s", finding, text)
-
-        # If no valid contexts were extracted, use the full text
-        if not contexts:
-            contexts.append(text)
-            spans.append((0, len(text)))
-
-        return (regex_findings, contexts, spans)
-
-    def _prepare_data(self, rows: list[dict[str, typing.Any]],
-                      regex_columns: list[str]) -> tuple[list[str], list[list[SpanType]], list[int]]:
-        """
-        Prepare the data for processing by ensuring the necessary columns are present.
-        """
-        model_data = []
-        model_row_to_row_num = []
-        all_spans = []
-        for (i, row) in enumerate(rows):
-
-            text = row[self.source_column_name]
-            (regex_findings, contexts, spans) = self._extract_contexts_from_regex_findings(text, row, regex_columns)
-            if len(regex_findings) > 0:
-                assert len(contexts) == len(spans)
-                model_data.extend(contexts)
-                all_spans.append(spans)
-                model_row_to_row_num.extend([i] * len(contexts))
-            elif self.fallback:
-                # If fallback is enabled, process the full text
-                model_data.append(text)
-                all_spans.append([(0, len(text))])
-                model_row_to_row_num.append(i)
-
-        assert len(model_data) == len(model_row_to_row_num), "Mismatch between contexts and row numbers"
-        return (model_data, all_spans, model_row_to_row_num)
-
-    def _process_one_result(self, model_entities: list[EntitiesType], spans: list[SpanType]) -> list[EntitiesType]:
-        seen = set()
-        unique_entities = []
-        for k, entities in enumerate(model_entities):
-            span_offset = spans[k][0]
-            for entity in entities:
-                entity["start"] += span_offset
-                entity["end"] += span_offset
-                entity_key = (entity["label"], entity["text"], entity["start"], entity["end"])
-                if entity_key not in seen:
-                    seen.add(entity_key)
-                    unique_entities.append(entity)
-
-        return unique_entities
-
-    def _process_results(self,
-                         num_rows: int,
-                         model_entities: list[list[EntitiesType]],
-                         all_spans: list[list[SpanType]],
-                         model_row_to_row_num: list[int]) -> list[list[EntitiesType]]:
-        dlp_findings = [[]] * num_rows
+    def _process_results(self, df: DataFrameType, model_entities: list[list[EntitiesType]]) -> list[list[EntitiesType]]:
 
         # flattend the model_entities list
-        _flat = []
+        flat_entities = []
         for entities in model_entities:
             assert entities is not None
-            _flat.extend(entities)
+            flat_entities.extend(entities)
 
-        model_entities = _flat
-
-        entities_per_row = []
-        current_row = None
-        for (i, entities) in enumerate(model_entities):
-            row_num = model_row_to_row_num[i]
-            if row_num != current_row:
-                if current_row is not None:
-                    spans = all_spans[current_row]
-                    dlp_findings[current_row] = self._process_one_result(entities_per_row, spans)
-
-                current_row = row_num
-                entities_per_row = []
-
-            entities_per_row.append(entities)
-
-        # Process the last row
-        if current_row is not None:
-            spans = all_spans[current_row]
-            dlp_findings[current_row] = self._process_one_result(entities_per_row, spans)
-        return dlp_findings
+        return flat_entities
 
     def _infer_callback(self,
                         *,
@@ -254,33 +129,29 @@ class GliNERProcessor(GpuAndCpuMixin, ControlMessageStage):
 
         with msg.payload().mutable_dataframe() as df:
             dlp_findings = []
+            context_series = df['context']
 
-            regex_columns = [col for col in df.columns if col.startswith(self._regex_col_prefix)]
-            rows = df[[self.source_column_name] + regex_columns].to_dict(orient="records")
+            futures = []
+            model_entities = []
+            for i in range(0, len(df), self._model_max_batch_size):
+                future = mrc.Future()
+                futures.append(future)
+                model_entities.append(None)
+                batch_data = context_series[i:i + self._model_max_batch_size]
 
-            (model_data, all_spans, model_row_to_row_num) = self._prepare_data(rows, regex_columns)
+                self.gliner_triton.process(
+                    batch_data.to_arrow().to_pylist(),
+                    partial(self._infer_callback,
+                            batch_num=len(model_entities) - 1,
+                            model_entities=model_entities,
+                            future=future))
 
-            # futures = []
-            # model_entities = []
-            # for i in range(0, len(model_data), self._model_max_batch_size):
-            #     future = mrc.Future()
-            #     futures.append(future)
-            #     model_entities.append(None)
-            #     batch_data = model_data[i:i + self._model_max_batch_size]
+            for future in futures:
+                future.result()
 
-            #     self.gliner_triton.process(
-            #         batch_data,
-            #         partial(self._infer_callback,
-            #                 batch_num=len(model_entities) - 1,
-            #                 model_entities=model_entities,
-            #                 future=future))
+            dlp_findings = self._process_results(df, model_entities)
 
-            # for future in futures:
-            #     future.result()
-
-            # dlp_findings = self._process_results(len(rows), model_entities, all_spans, model_row_to_row_num)
-
-            # df['dlp_findings'] = dlp_findings
+            df['dlp_findings'] = dlp_findings
 
         return msg
 
