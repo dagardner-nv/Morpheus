@@ -87,9 +87,6 @@ class RegexProcessor(GpuAndCpuMixin, ControlMessageStage):
 
             self.combined_patterns[pattern_name] = combined_pattern
 
-        self._needed_columns['matches'] = TypeId.STRING
-        self._needed_columns['pattern_name'] = TypeId.STRING
-
     @staticmethod
     def load_regex_patterns(file_path: str | pathlib.Path) -> dict[str, list[str]]:
         """Load regex patterns from a JSON file."""
@@ -121,25 +118,27 @@ class RegexProcessor(GpuAndCpuMixin, ControlMessageStage):
             List of findings with metadata
         """
 
-        df = msg.payload().copy_dataframe()
+        with msg.payload().mutable_dataframe() as df:
+            # Extract the text column to process
+            if df.index.name is None:
+                df.index.name = "original_row"  # Ensure index has a name for consistency
 
-        # Extract the text column to process
-        df.index.name = "original_row"  # Ensure index has a name for consistency
-        text_series = df[self.source_column_name]
+            text_series = df[self.source_column_name]
 
-        matched_dfs = []
-        for pattern_name, pattern in self.combined_patterns.items():
-            matched_series = text_series.str.findall(pattern)
-            matched_series = matched_series.explode(ignore_index=False).dropna()
-            if len(matched_series) > 0:
-                matched_dfs.append(self._df_class({'matches': matched_series, 'pattern_name': pattern_name}))
+            matched_dfs = []
+            for pattern_name, pattern in self.combined_patterns.items():
+                matched_series = text_series.str.findall(pattern)
+                matched_series = matched_series.explode(ignore_index=False).dropna()
+                if len(matched_series) > 0:
+                    matched_dfs.append(self._df_class({'matches': matched_series, 'pattern_name': pattern_name}))
 
-        matches = self._df_pkg.concat(matched_dfs)
-        df = df.merge(matches, on=['original_row'])
-        df.reset_index(drop=False, inplace=True)
+            matches = self._df_pkg.concat(matched_dfs)
 
-        new_meta = MessageMeta(df)
-        msg.payload(new_meta)
+            merged_df = df.merge(matches, on=[df.index.name])
+            merged_df.reset_index(drop=False, inplace=True)
+
+            new_meta = MessageMeta(merged_df)
+            msg.payload(new_meta)
 
         return msg
 
