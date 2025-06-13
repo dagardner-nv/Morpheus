@@ -75,7 +75,7 @@ class GliNERProcessor(GpuAndCpuMixin, ControlMessageStage):
                  regex_col_prefix: str = "regex_matches_",
                  confidence_threshold: float = 0.3,
                  context_window: int = 100,
-                 fallback: bool = True):
+                 fallback: bool = False):
 
         super().__init__(config)
         if config.execution_mode == ExecutionMode.GPU:
@@ -89,7 +89,6 @@ class GliNERProcessor(GpuAndCpuMixin, ControlMessageStage):
         self._confidence_threshold = confidence_threshold
         self.context_window = context_window
         self.fallback = fallback
-        self._needed_columns['dlp_findings'] = TypeId.STRING
         self.gliner_triton = GliNERTritonInference(server_url=server_url,
                                                    triton_model_name=triton_model_name,
                                                    model_source_dir=model_source_dir,

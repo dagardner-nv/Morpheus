@@ -26,13 +26,12 @@ from morpheus.messages import ControlMessage
 from morpheus.messages import MessageMeta
 from morpheus.pipeline.control_message_stage import ControlMessageStage
 from morpheus.pipeline.execution_mode_mixins import GpuAndCpuMixin
-from morpheus.pipeline.preallocator_mixin import PreallocatorMixin
 from morpheus.utils.type_aliases import SeriesType
 from morpheus.utils.type_utils import get_df_class
 
 
 @register_stage("dlp_input_processor", modes=[PipelineModes.NLP])
-class DLPInputProcessor(PreallocatorMixin, GpuAndCpuMixin, ControlMessageStage):
+class DLPInputProcessor(GpuAndCpuMixin, ControlMessageStage):
     """
     Handles input text processing and normalization for DLP pipeline
 
@@ -46,7 +45,7 @@ class DLPInputProcessor(PreallocatorMixin, GpuAndCpuMixin, ControlMessageStage):
         If True, splits input text into chunks. Defaults to False.
     """
 
-    def __init__(self, config: Config, *, column_name: str = "source_text", split_paragraphs: bool = False):
+    def __init__(self, config: Config, *, column_name: str = "source_text", split_paragraphs: bool = True):
         super().__init__(config)
         self.column_name = column_name
         self.split_paragraphs = split_paragraphs
