@@ -24,8 +24,11 @@ from mrc.core import operators as ops
 from morpheus.cli.register_stage import register_stage
 from morpheus.config import Config
 from morpheus.messages import ControlMessage
+from morpheus.messages import MessageMeta
 from morpheus.pipeline.control_message_stage import ControlMessageStage
 from morpheus.pipeline.execution_mode_mixins import GpuAndCpuMixin
+from morpheus.pipeline.pass_thru_type_mixin import PassThruTypeMixin
+from morpheus.pipeline.single_port_stage import SinglePortStage
 from morpheus.utils.type_utils import get_df_class
 
 logger = logging.getLogger(f"morpheus.{__name__}")
@@ -96,7 +99,7 @@ class RegexProcessor(GpuAndCpuMixin, ControlMessageStage):
         return "regex-processor"
 
     def accepted_types(self) -> tuple:
-        return (ControlMessage, )
+        return (MessageMeta, )
 
     def supports_cpp_node(self) -> bool:
         return False
@@ -108,7 +111,7 @@ class RegexProcessor(GpuAndCpuMixin, ControlMessageStage):
         """
         return self.combined_patterns.copy()
 
-    def process(self, msg: ControlMessage) -> ControlMessage:
+    def process(self, msg: MessageMeta) -> ControlMessage:
         """
         Scan text for sensitive data using regex patterns
 
@@ -117,7 +120,7 @@ class RegexProcessor(GpuAndCpuMixin, ControlMessageStage):
         """
 
         time_start = time.time()
-        with msg.payload().mutable_dataframe() as df:
+        with msg.mutable_dataframe() as df:
             # Extract the text column to process
             text_series = df[self.source_column_name]
 
@@ -125,13 +128,20 @@ class RegexProcessor(GpuAndCpuMixin, ControlMessageStage):
             for pattern_name, pattern in self.combined_patterns.items():
                 boolean_columns[pattern_name] = text_series.str.contains(pattern)
 
-            # Create new columns into a single column
+            # Combine all boolean columns into a single series
             bool_df = self._df_class(boolean_columns)
-            df["matched"] = bool_df.any(axis=1)
+            bool_any_series = bool_df.any(axis=1)
+
+            # drop input rows that did not match any pattern
+            df.drop(bool_any_series[(bool_any_series == False)].index, axis=0, inplace=True)
+            df.reset_index(drop=True, inplace=True)
 
         time_end = time.time()
-        print(f"\nRegex processing took {time_end - time_start} seconds\n")
-        return msg
+        # print(f"\nRegex processing took {time_end - time_start} seconds\n")
+
+        cm_msg = ControlMessage()
+        cm_msg.payload(msg)
+        return cm_msg
 
     def _build_single(self, builder: mrc.Builder, input_node: mrc.SegmentObject) -> mrc.SegmentObject:
         node = builder.make_node(self.unique_name, ops.map(self.process))

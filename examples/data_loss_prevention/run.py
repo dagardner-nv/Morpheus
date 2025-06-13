@@ -143,18 +143,18 @@ def main(log_level: int,
 
     pipeline.add_stage(MonitorStage(config, description="Regex Processor"))
 
-    # pipeline.add_stage(GliNERProcessor(config, server_url=server_url, model_source_dir=str(model_source_dir)))
+    pipeline.add_stage(GliNERProcessor(config, server_url=server_url, model_source_dir=str(model_source_dir)))
 
-    # pipeline.add_stage(MonitorStage(config, description="GliNER Processor"))
+    pipeline.add_stage(MonitorStage(config, description="GliNER Processor"))
 
-    # pipeline.add_stage(RiskScorer(config))
+    pipeline.add_stage(RiskScorer(config))
 
-    # pipeline.add_stage(MonitorStage(config, description="Risk Scorer"))
+    pipeline.add_stage(MonitorStage(config, description="Risk Scorer"))
 
-    # pipeline.add_stage(dlp_post_process(config, include_privacy_masks=include_privacy_masks))
-    # pipeline.add_stage(DLPOutput(config, filename=str(out_file), overwrite=True))
+    pipeline.add_stage(dlp_post_process(config, include_privacy_masks=include_privacy_masks))
+    pipeline.add_stage(DLPOutput(config, filename=str(out_file), overwrite=True))
 
-    # pipeline.add_stage(MonitorStage(config, description="output"))
+    pipeline.add_stage(MonitorStage(config, description="DLP Output"))
 
     # Run the pipeline
     pipeline.run()
