@@ -14,18 +14,21 @@
 # limitations under the License.
 
 import logging
+import os
 import typing
 from functools import partial
 
+import cupy as cp
 import mrc
+import torch
 from mrc.core import operators as ops
 
 from morpheus.cli.register_stage import register_stage
 from morpheus.config import Config
 from morpheus.config import ExecutionMode
 from morpheus.messages import ControlMessage
+from morpheus.messages.memory.inference_memory import InferenceMemory
 from morpheus.pipeline.control_message_stage import ControlMessageStage
-from morpheus.pipeline.execution_mode_mixins import GpuAndCpuMixin
 from morpheus.utils.type_aliases import DataFrameType
 
 from .gliner_triton import GliNERTritonInference
@@ -37,7 +40,7 @@ SpanType = tuple[int, int]
 
 
 @register_stage("gliner-processor")
-class GliNERProcessor(GpuAndCpuMixin, ControlMessageStage):
+class GliNERProcessor(ControlMessageStage):
     """
     Process text with a Small Language Model to identify semantically sensitive content
     Uses a model to predict entities in text
@@ -70,28 +73,21 @@ class GliNERProcessor(GpuAndCpuMixin, ControlMessageStage):
                  *,
                  model_source_dir: str,
                  server_url: str = "localhost:8001",
-                 triton_model_name: str = "gliner_bi_encoder",
                  source_column_name: str = "source_text",
                  confidence_threshold: float = 0.3,
-                 context_window: int = 100,
                  fallback: bool = True):
 
         super().__init__(config)
-        if config.execution_mode == ExecutionMode.GPU:
-            map_location = "cuda"
-        else:
-            map_location = "cpu"
+        self._model = None
+        self._model_source_dir = model_source_dir
+        self._map_location = map_location
+        self._labels_embeddings = None
+        self._labels: list[str] | None = None
+        self._labels_file = os.path.join(model_source_dir, "label_embedding.pt")
 
         self._model_max_batch_size = config.model_max_batch_size
         self.source_column_name = source_column_name
         self._confidence_threshold = confidence_threshold
-        self.context_window = context_window
-        self.fallback = fallback
-        self.gliner_triton = GliNERTritonInference(server_url=server_url,
-                                                   triton_model_name=triton_model_name,
-                                                   model_source_dir=model_source_dir,
-                                                   map_location=map_location,
-                                                   gliner_threshold=confidence_threshold)
 
     @property
     def name(self) -> str:
@@ -103,24 +99,69 @@ class GliNERProcessor(GpuAndCpuMixin, ControlMessageStage):
     def supports_cpp_node(self) -> bool:
         return False
 
-    def _process_results(self, df: DataFrameType, model_entities: list[list[EntitiesType]]) -> list[list[EntitiesType]]:
+    @property
+    def model(self) -> "GLiNER":
+        """
+        Return the GLiNER model instance.
+        """
+        if self._model is None:
+            from gliner import GLiNER
+            self._model = GLiNER.from_pretrained(self._model_source_dir, local_files_only=True, map_location="cuda")
+        return self._model
 
-        # flattend the model_entities list
-        flat_entities = []
-        for entities in model_entities:
-            assert entities is not None
-            flat_entities.extend(entities)
+    def _load_label_data(self):
+        label_data = torch.load(self._labels_file)
+        self._labels_embeddings = cp.asarray(label_data['embeddings'].to("cuda"))
+        self._labels = label_data['labels']
 
-        return flat_entities
+    @property
+    def labels_embeddings(self) -> cp.ndarray:
+        """
+        Return the labels embeddings tensor.
+        If not loaded, it will load from the specified file.
+        """
+        if self._labels_embeddings is None:
+            self._load_label_data()
 
-    def _infer_callback(self,
-                        *,
-                        batch_num: int,
-                        model_entities: list[list[EntitiesType]],
-                        future: mrc.Future,
-                        entities: list[EntitiesType]):
-        model_entities[batch_num] = entities
-        future.set_result(batch_num)
+        return self._labels_embeddings
+
+    # def _process_results(self, df: DataFrameType, model_entities: list[list[EntitiesType]]) -> list[list[EntitiesType]]:
+
+    #     # flattend the model_entities list
+    #     flat_entities = []
+    #     for entities in model_entities:
+    #         assert entities is not None
+    #         flat_entities.extend(entities)
+
+    #     return flat_entities
+
+    # def _infer_callback(self,
+    #                     *,
+    #                     batch_num: int,
+    #                     model_entities: list[list[EntitiesType]],
+    #                     future: mrc.Future,
+    #                     entities: list[EntitiesType]):
+    #     model_entities[batch_num] = entities
+    #     future.set_result(batch_num)
+
+    def pre_process(self, context_series):
+        """
+        Pre-process the data for the ONNX model.
+        """
+        # === 1. PRE-PROCESSING ===
+        model_input, raw_batch = self.model.prepare_model_inputs(context_series.to_pandas(), self.labels, prepare_entities=False)
+
+        # Convert torch tensors to numpy for Triton
+        tensors = {
+            "input_ids": cp.asarray(model_input["input_ids"]),
+            "attention_mask": cp.asarray(model_input["attention_mask"]),
+            "words_mask": cp.asarray(model_input["words_mask"]),
+            "text_lengths": cp.asarray(model_input["text_lengths"]),
+            "span_idx": cp.asarray(model_input["span_idx"]),
+            "span_mask": cp.asarray(model_input["span_mask"])
+        }
+
+        return tensors, raw_batch
 
     def process(self, msg: ControlMessage) -> ControlMessage:
         """
@@ -128,30 +169,35 @@ class GliNERProcessor(GpuAndCpuMixin, ControlMessageStage):
         """
 
         with msg.payload().mutable_dataframe() as df:
-            dlp_findings = []
             context_series = df['context']
+            (tensors, raw_batch) = self.pre_process(context_series)
+            memory = InferenceMemory(len(df), tensors=tensors)
+            memory.set_tensor("labels_embeddings", self.labels_embeddings)
 
-            futures = []
-            model_entities = []
-            for i in range(0, len(df), self._model_max_batch_size):
-                future = mrc.Future()
-                futures.append(future)
-                model_entities.append(None)
-                batch_data = context_series[i:i + self._model_max_batch_size]
+        msg.set_metadata("gliner_raw_batch", raw_batch)
+        msg.te
 
-                self.gliner_triton.process(
-                    batch_data.to_arrow().to_pylist(),
-                    partial(self._infer_callback,
-                            batch_num=len(model_entities) - 1,
-                            model_entities=model_entities,
-                            future=future))
+        # futures = []
+        # model_entities = []
+        # for i in range(0, len(df), self._model_max_batch_size):
+        #     future = mrc.Future()
+        #     futures.append(future)
+        #     model_entities.append(None)
+        #     batch_data = context_series[i:i + self._model_max_batch_size]
 
-            for future in futures:
-                future.result()
+        #     self.gliner_triton.process(
+        #         batch_data.to_arrow().to_pylist(),
+        #         partial(self._infer_callback,
+        #                 batch_num=len(model_entities) - 1,
+        #                 model_entities=model_entities,
+        #                 future=future))
 
-            dlp_findings = self._process_results(df, model_entities)
+        # for future in futures:
+        #     future.result()
 
-            df['dlp_findings'] = dlp_findings
+        # dlp_findings = self._process_results(df, model_entities)
+
+        # df['dlp_findings'] = dlp_findings
 
         return msg
 
