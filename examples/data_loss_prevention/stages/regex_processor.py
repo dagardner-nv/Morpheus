@@ -16,7 +16,6 @@
 import json
 import logging
 import pathlib
-import time
 
 import mrc
 from mrc.core import operators as ops
@@ -27,8 +26,6 @@ from morpheus.messages import ControlMessage
 from morpheus.messages import MessageMeta
 from morpheus.pipeline.control_message_stage import ControlMessageStage
 from morpheus.pipeline.execution_mode_mixins import GpuAndCpuMixin
-from morpheus.pipeline.pass_thru_type_mixin import PassThruTypeMixin
-from morpheus.pipeline.single_port_stage import SinglePortStage
 from morpheus.utils.type_utils import get_df_class
 
 logger = logging.getLogger(f"morpheus.{__name__}")
@@ -114,12 +111,8 @@ class RegexProcessor(GpuAndCpuMixin, ControlMessageStage):
     def process(self, msg: MessageMeta) -> ControlMessage:
         """
         Scan text for sensitive data using regex patterns
-
-        Returns:
-            List of findings with metadata
         """
 
-        time_start = time.time()
         with msg.mutable_dataframe() as df:
             # Extract the text column to process
             text_series = df[self.source_column_name]
@@ -130,14 +123,11 @@ class RegexProcessor(GpuAndCpuMixin, ControlMessageStage):
 
             # Combine all boolean columns into a single series
             bool_df = self._df_class(boolean_columns)
-            bool_any_series = bool_df.any(axis=1)
+            bool_series = bool_df.any(axis=1)
 
             # drop input rows that did not match any pattern
-            df.drop(bool_any_series[(bool_any_series == False)].index, axis=0, inplace=True)
+            df.drop(bool_series[(bool_series == False)].index, axis=0, inplace=True)
             df.reset_index(drop=True, inplace=True)
-
-        time_end = time.time()
-        # print(f"\nRegex processing took {time_end - time_start} seconds\n")
 
         cm_msg = ControlMessage()
         cm_msg.payload(msg)

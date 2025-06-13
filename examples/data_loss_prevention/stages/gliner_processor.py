@@ -22,7 +22,6 @@ import pandas as pd
 from mrc.core import operators as ops
 
 from morpheus.cli.register_stage import register_stage
-from morpheus.common import TypeId
 from morpheus.config import Config
 from morpheus.config import ExecutionMode
 from morpheus.messages import ControlMessage
@@ -34,7 +33,6 @@ from .gliner_triton import GliNERTritonInference
 logger = logging.getLogger(f"morpheus.{__name__}")
 
 EntitiesType = list[dict[str, typing.Any]]
-SpanType = tuple[int, int]
 
 
 @register_stage("gliner-processor")
@@ -106,12 +104,12 @@ class GliNERProcessor(GpuAndCpuMixin, ControlMessageStage):
     def supports_cpp_node(self) -> bool:
         return False
 
-    def _process_results(self, model_entities: list[list[EntitiesType]]) -> list[list[EntitiesType]]:
+    def _process_results(self, batch_entities: list[list[EntitiesType]]) -> list[EntitiesType]:
         dlp_findings = []
 
-        # flattend the model_entities list, currently each entry in the model_entities represents a batch of entities
+        # flattend the batch_entities list, currently each entry in the batch_entities represents a batch of entities
         # by flattening it we get a list of entities for each row in the input DataFrame
-        for entities in model_entities:
+        for entities in batch_entities:
             assert entities is not None
             dlp_findings.extend(entities)
 
@@ -120,10 +118,10 @@ class GliNERProcessor(GpuAndCpuMixin, ControlMessageStage):
     def _infer_callback(self,
                         *,
                         batch_num: int,
-                        model_entities: list[list[EntitiesType]],
+                        batch_entities: list[list[EntitiesType]],
                         future: mrc.Future,
                         entities: list[EntitiesType]):
-        model_entities[batch_num] = entities
+        batch_entities[batch_num] = entities
         future.set_result(batch_num)
 
     def process(self, msg: ControlMessage) -> ControlMessage:
@@ -141,25 +139,24 @@ class GliNERProcessor(GpuAndCpuMixin, ControlMessageStage):
                 input_data = input_data.tolist()
 
             futures = []
-            model_entities = []
+            batch_entities = []
             for i in range(0, len(input_data), self._model_max_batch_size):
                 future = mrc.Future()
                 futures.append(future)
-                model_entities.append(None)
+                batch_entities.append(None)
                 batch_data = input_data[i:i + self._model_max_batch_size]
 
                 self.gliner_triton.process(
                     batch_data,
                     partial(self._infer_callback,
-                            batch_num=len(model_entities) - 1,
-                            model_entities=model_entities,
+                            batch_num=len(batch_entities) - 1,
+                            batch_entities=batch_entities,
                             future=future))
 
             for future in futures:
                 future.result()
 
-            dlp_findings = self._process_results(model_entities)
-            assert len(dlp_findings) == len(df), "Mismatch in number of findings and input rows"
+            dlp_findings = self._process_results(batch_entities)
 
             df['dlp_findings'] = dlp_findings
 
