@@ -33,7 +33,21 @@ from morpheus.utils.type_utils import get_df_pkg
 
 @register_stage("risk-scorer")
 class RiskScorer(GpuAndCpuMixin, ControlMessageStage):
-    """Analyzes findings to calculate risk scores and metrics"""
+    """
+    Analyzes findings to calculate risk scores and metrics
+
+    Parameters
+    ----------
+    config : morpheus.config.Config
+        Pipeline configuration instance.
+    findings_column : str
+        Name of the column containing findings to score.
+    type_weights : dict[str, int] | None
+        Dictionary mapping data types to their risk weights.
+        If None, uses `RiskScorer.DEFAULT_TYPE_WEIGHTS`.
+    default_weight : int
+        Default weight to use for data types not in `type_weights`.
+    """
 
     DEFAULT_TYPE_WEIGHTS = {
         "password": 85,
@@ -197,7 +211,6 @@ class RiskScorer(GpuAndCpuMixin, ControlMessageStage):
         Calculate risk scores based on findings
         """
 
-        t1 = time.time()
         with msg.payload().mutable_dataframe() as df:
             df = df.assign(**self._NEW_COLUMNS)
             df["data_types_found"] = self._df_pkg.Series(index=df.index, dtype=self._df_pkg.core.dtypes.ListDtype)
@@ -212,15 +225,10 @@ class RiskScorer(GpuAndCpuMixin, ControlMessageStage):
 
         msg.payload(MessageMeta(result_df))
 
-        t2 = time.time()
-        self._elapsed_time_secs += t2 - t1
         return msg
 
-    def _on_completed(self) -> None:
-        print(f"RiskScorer completed in {self._elapsed_time_secs:.2f} seconds")
-
     def _build_single(self, builder: mrc.Builder, input_node: mrc.SegmentObject) -> mrc.SegmentObject:
-        node = builder.make_node(self.unique_name, ops.map(self.score), ops.on_completed(self._on_completed))
+        node = builder.make_node(self.unique_name, ops.map(self.score))
         builder.make_edge(input_node, node)
 
         return node

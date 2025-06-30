@@ -20,8 +20,6 @@ import pathlib
 import click
 from dlp_stages.datasets_source import DatasetsSourceStage
 from dlp_stages.dlp_input_processor import DLPInputProcessor
-from dlp_stages.dlp_output import DLPOutput
-from dlp_stages.dlp_post_process import dlp_post_process
 from dlp_stages.gliner_processor import GliNERProcessor
 from dlp_stages.regex_processor import RegexProcessor
 from dlp_stages.risk_scorer import RiskScorer
@@ -33,6 +31,8 @@ from morpheus.config import PipelineModes
 from morpheus.pipeline import LinearPipeline
 from morpheus.stages.general.monitor_stage import MonitorStage
 from morpheus.stages.input.file_source_stage import FileSourceStage
+from morpheus.stages.output.write_to_file_stage import WriteToFileStage
+from morpheus.stages.postprocess.serialize_stage import SerializeStage
 from morpheus.stages.preprocess.deserialize_stage import DeserializeStage
 from morpheus.utils.logger import configure_logging
 
@@ -48,6 +48,10 @@ MORPHEUS_ROOT = os.environ.get('MORPHEUS_ROOT', os.path.abspath(os.path.join(CUR
               callback=parse_log_level,
               show_default=True,
               help="Specify the logging level to use.")
+@click.option("--num_threads",
+              default=16,
+              type=click.IntRange(min=1),
+              help="Number of internal pipeline threads to use.")
 @click.option("--regex_file",
               help="JSON file containing regex patterns",
               default=os.path.join(CUR_DIR, "data/regex_patterns.json"),
@@ -114,6 +118,7 @@ MORPHEUS_ROOT = os.environ.get('MORPHEUS_ROOT', os.path.abspath(os.path.join(CUR
               show_default=True,
               required=True)
 def main(log_level: int,
+         num_threads: int,
          regex_file: pathlib.Path,
          dataset: list[str],
          input_file: pathlib.Path | None,
@@ -137,6 +142,7 @@ def main(log_level: int,
 
     config = Config()
     config.mode = PipelineModes.NLP
+    config.num_threads = num_threads
     config.model_max_batch_size = model_max_batch_size
     config.pipeline_batch_size = pipeline_batch_size
 
@@ -200,10 +206,8 @@ def main(log_level: int,
 
     pipeline.add_stage(MonitorStage(config, description="Risk Scorer"))
 
-    pipeline.add_stage(dlp_post_process(config, output_columns=output_columns))
-    pipeline.add_stage(DLPOutput(config, filename=str(out_file), overwrite=True))
-
-    pipeline.add_stage(MonitorStage(config, description="DLP Output"))
+    pipeline.add_stage(SerializeStage(config, include=output_columns))
+    pipeline.add_stage(WriteToFileStage(config, filename=str(out_file), overwrite=True))
 
     # Run the pipeline
     pipeline.run()

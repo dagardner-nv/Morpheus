@@ -15,29 +15,34 @@
  * limitations under the License.
  */
 
-#include "regex_processor.h"
+#include "regex_processor.hpp"  // IWYU pragma: associated
 
-#include <cudf/ast/expressions.hpp>  // for cudf::ast::tree, cudf::ast::column_reference, ast_operator
-#include <cudf/column/column.hpp>
-#include <cudf/column/column_factories.hpp>           // for make_column_from_scalar
-#include <cudf/copying.hpp>                           // for cudf::copy_if_else
-#include <cudf/io/types.hpp>                          // for cudf::io::table_metadata and table_with_metadata
-#include <cudf/stream_compaction.hpp>                 // for apply_boolean_mask
-#include <cudf/strings/combine.hpp>                   // for concatenate
-#include <cudf/strings/contains.hpp>                  // for contains_re
-#include <cudf/strings/convert/convert_booleans.hpp>  // for from_booleans
-#include <cudf/strings/strip.hpp>                     // for strip
-#include <cudf/table/table_view.hpp>
-#include <cudf/transform.hpp>  // for compute_column
-#include <cudf/types.hpp>
+#include <cudf/ast/expressions.hpp>         // for cudf::ast::tree, cudf::ast::column_reference, ast_operator
+#include <cudf/column/column.hpp>           // for cudf::column
+#include <cudf/column/column_view.hpp>      // for column_view
+#include <cudf/copying.hpp>                 // for cudf::copy_if_else
+#include <cudf/io/types.hpp>                // for cudf::io::table_metadata and table_with_metadata
+#include <cudf/stream_compaction.hpp>       // for apply_boolean_mask
+#include <cudf/strings/combine.hpp>         // for concatenate
+#include <cudf/strings/contains.hpp>        // for contains_re
+#include <cudf/table/table.hpp>             // for table
+#include <cudf/table/table_view.hpp>        // for table_view
+#include <cudf/transform.hpp>               // for compute_column
+#include <glog/logging.h>                   // for CHECK, COMPACT_GOOGLE_LOG_FATAL, LogMessageFatal
+#include <morpheus/messages/meta.hpp>       // for MessageMeta
+#include <morpheus/objects/table_info.hpp>  // for TableInfo
 #include <pybind11/attr.h>
-#include <pybind11/cast.h>
 #include <pybind11/pybind11.h>
 #include <pymrc/utils.hpp>  // for pymrc::import
 
-#include <chrono>
-#include <cstddef>
-#include <memory>
+#include <cstddef>    // for size_t
+#include <exception>  // for exception_ptr
+#include <memory>     // for unique_ptr, shared_ptr
+#include <ostream>    // for operator<<
+#include <utility>    // for move
+
+// IWYU pragma: no_include <unordered_map>
+// IWYU pragma: no_include "morpheus/messages/control.hpp"
 
 namespace morpheus_dlp {
 
@@ -62,7 +67,6 @@ RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
     return [this](rxcpp::observable<sink_type_t> input, rxcpp::subscriber<source_type_t> output) {
         return input.subscribe(rxcpp::make_observer<sink_type_t>(
             [this, &output](sink_type_t cm_msg) {
-                auto time_start       = std::chrono::steady_clock::now();
                 auto meta             = cm_msg->payload();
                 auto table_info       = meta->get_info();
                 const auto& col_view  = table_info.get_column(m_source_column_name);
@@ -92,17 +96,10 @@ RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
                     }
                 }
 
-                for (std::size_t i = 1; i < column_references.size(); ++i)
+                tree.push(ast::operation{ast::ast_operator::LOGICAL_OR, column_references[0], column_references[1]});
+                for (std::size_t i = 2; i < column_references.size(); ++i)
                 {
-                    if (i == 1)
-                    {
-                        tree.push(
-                            ast::operation{ast::ast_operator::LOGICAL_OR, column_references[0], column_references[1]});
-                    }
-                    else
-                    {
-                        tree.push(ast::operation{ast::ast_operator::LOGICAL_OR, tree.back(), column_references[i]});
-                    }
+                    tree.push(ast::operation{ast::ast_operator::LOGICAL_OR, tree.back(), column_references[i]});
                 }
 
                 auto boolean_table = cudf::table_view(boolean_column_views);
@@ -148,17 +145,12 @@ RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
                 auto new_meta                              = MessageMeta::create_from_cpp(std::move(table_w_meta), 1);
                 cm_msg->payload(new_meta);
 
-                auto stop_time = std::chrono::steady_clock::now();
-                auto elapsed   = std::chrono::duration_cast<std::chrono::milliseconds>(stop_time - time_start).count();
-                m_regex_time_ms += elapsed;
-
                 output.on_next(std::move(cm_msg));
             },
             [&](std::exception_ptr error_ptr) {
                 output.on_error(error_ptr);
             },
             [&]() {
-                std::cerr << "Regex stage completed in " << m_regex_time_ms / 1000.0 << " s" << std::endl;
                 output.on_completed();
             }));
     };
