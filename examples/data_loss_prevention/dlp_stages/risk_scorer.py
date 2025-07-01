@@ -16,6 +16,7 @@
 import functools
 
 import mrc
+import numpy as np
 import pandas as pd
 from mrc.core import operators as ops
 
@@ -27,6 +28,7 @@ from morpheus.pipeline.control_message_stage import ControlMessageStage
 from morpheus.utils.type_aliases import DataFrameType
 from morpheus.utils.type_aliases import SeriesType
 from morpheus.utils.type_utils import get_df_class
+from morpheus.utils.type_utils import get_df_pkg
 
 
 @register_stage("risk-scorer")
@@ -65,6 +67,17 @@ class RiskScorer(ControlMessageStage):
         "medical_record_number": 75
     }
 
+    _NEW_COLUMNS = {
+        "risk_score": 0,
+        "risk_level": '',
+        "highest_confidence": 0.0,
+        "num_minimal": 0,
+        "num_low": 0,
+        "num_medium": 0,
+        "num_high": 0,
+        "num_critical": 0
+    }
+
     def __init__(self,
                  config: Config,
                  *,
@@ -84,6 +97,8 @@ class RiskScorer(ControlMessageStage):
 
         self._findings_column = findings_column
         self._df_class = get_df_class(config.execution_mode)
+        self._df_pkg = get_df_pkg(config.execution_mode)
+        self._group_cols = [self._findings_column, "data_types_found"] + list(self._NEW_COLUMNS.keys())
 
     @property
     def name(self) -> str:
@@ -117,7 +132,8 @@ class RiskScorer(ControlMessageStage):
                   *,
                   findings_column: str,
                   type_weights: dict[str, int],
-                  default_weight: int) -> SeriesType | None:
+                  default_weight: int,
+                  df_class: type) -> DataFrameType:
 
         # Calculate total weighted score
         total_score = 0
@@ -163,14 +179,14 @@ class RiskScorer(ControlMessageStage):
         df_data = {
             "risk_score": risk_score,
             "risk_level": risk_level,
-            "data_types_found": sorted(data_types_found),
+            "data_types_found": [sorted(data_types_found)],
             "highest_confidence": highest_confidence,
-            findings_column: findings
+            findings_column: [findings]
         }
 
         df_data.update({f"num_{level}": count for (level, count) in score_counts.items()})
 
-        return pd.Series(df_data)
+        return df_class(df_data)
 
     def _mk_flat(self, findings: SeriesType, *, findings_column: str, df_class: type) -> DataFrameType | None:
         if findings is None:
@@ -213,16 +229,18 @@ class RiskScorer(ControlMessageStage):
         # I'm not sure what this column is, but the value is always 0
         flat_df.drop(columns='index', inplace=True)
         flat_df.reset_index(drop=False, inplace=True)
+        flat_df.index.name = "index"
 
-        # I wasn't able to get the _score_fn to work with cuDF DataFrames, so we convert to pandas here.
-        pdf = flat_df.to_pandas()
+        flat_df = df.assign(**self._NEW_COLUMNS)
+        flat_df["data_types_found"] = self._df_pkg.Series(index=df.index, dtype=self._df_pkg.core.dtypes.ListDtype)
 
         score_fn = functools.partial(self._score_fn,
                                      findings_column=self._findings_column,
                                      type_weights=self.type_weights,
-                                     default_weight=self.default_weight)
-        result_df = pdf[self._findings_column].apply(score_fn)
-        result_df = self._df_class(result_df)
+                                     default_weight=self.default_weight,
+                                     df_class=self._df_class)
+        groups = flat_df.groupby([flat_df.index.name], as_index=False)
+        result_df = groups[self._group_cols].apply(score_fn)
 
         msg.payload(MessageMeta(result_df))
 
