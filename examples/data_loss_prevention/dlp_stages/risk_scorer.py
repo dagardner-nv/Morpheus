@@ -14,10 +14,9 @@
 # limitations under the License.
 
 import functools
-import time
 
 import mrc
-import numpy as np
+import pandas as pd
 from mrc.core import operators as ops
 
 from morpheus.cli.register_stage import register_stage
@@ -25,14 +24,13 @@ from morpheus.config import Config
 from morpheus.messages import ControlMessage
 from morpheus.messages import MessageMeta
 from morpheus.pipeline.control_message_stage import ControlMessageStage
-from morpheus.pipeline.execution_mode_mixins import GpuAndCpuMixin
 from morpheus.utils.type_aliases import DataFrameType
+from morpheus.utils.type_aliases import SeriesType
 from morpheus.utils.type_utils import get_df_class
-from morpheus.utils.type_utils import get_df_pkg
 
 
 @register_stage("risk-scorer")
-class RiskScorer(GpuAndCpuMixin, ControlMessageStage):
+class RiskScorer(ControlMessageStage):
     """
     Analyzes findings to calculate risk scores and metrics
 
@@ -67,17 +65,6 @@ class RiskScorer(GpuAndCpuMixin, ControlMessageStage):
         "medical_record_number": 75
     }
 
-    _NEW_COLUMNS = {
-        "risk_score": 0,
-        "risk_level": '',
-        "highest_confidence": 0.0,
-        "num_minimal": 0,
-        "num_low": 0,
-        "num_medium": 0,
-        "num_high": 0,
-        "num_critical": 0
-    }
-
     def __init__(self,
                  config: Config,
                  *,
@@ -97,9 +84,6 @@ class RiskScorer(GpuAndCpuMixin, ControlMessageStage):
 
         self._findings_column = findings_column
         self._df_class = get_df_class(config.execution_mode)
-        self._df_pkg = get_df_pkg(config.execution_mode)
-        self._elapsed_time_secs = 0.0
-        self._group_cols = [self._findings_column, "data_types_found"] + list(self._NEW_COLUMNS.keys())
 
     @property
     def name(self) -> str:
@@ -129,29 +113,11 @@ class RiskScorer(GpuAndCpuMixin, ControlMessageStage):
         return "minimal"
 
     def _score_fn(self,
-                  group_df: DataFrameType,
+                  findings: list[dict] | list[str],
                   *,
                   findings_column: str,
                   type_weights: dict[str, int],
-                  default_weight: int,
-                  df_class: type) -> DataFrameType | None:
-
-        findings = group_df[findings_column].to_pandas()
-
-        if findings is None:
-            return None
-
-        flat_findings = []
-        for finding in findings:
-            if isinstance(finding, str):
-                flat_findings.extend(s.strip() for s in finding.split(','))
-            else:
-                flat_findings.extend(finding)
-
-        findings = flat_findings
-
-        if len(findings) == 0:
-            return None
+                  default_weight: int) -> SeriesType | None:
 
         # Calculate total weighted score
         total_score = 0
@@ -197,14 +163,25 @@ class RiskScorer(GpuAndCpuMixin, ControlMessageStage):
         df_data = {
             "risk_score": risk_score,
             "risk_level": risk_level,
-            "data_types_found": [sorted(data_types_found)],
+            "data_types_found": sorted(data_types_found),
             "highest_confidence": highest_confidence,
-            findings_column: [findings]
+            findings_column: findings
         }
 
         df_data.update({f"num_{level}": count for (level, count) in score_counts.items()})
 
-        return df_class(df_data)
+        return pd.Series(df_data)
+
+    def _mk_flat(self, findings: SeriesType, *, findings_column: str, df_class: type) -> DataFrameType | None:
+        if findings is None:
+            return None
+
+        findings = findings.list.leaves
+
+        if len(findings) == 0:
+            return None
+
+        return df_class({findings_column: [findings]})
 
     def score(self, msg: ControlMessage) -> ControlMessage:
         """
@@ -212,16 +189,40 @@ class RiskScorer(GpuAndCpuMixin, ControlMessageStage):
         """
 
         with msg.payload().mutable_dataframe() as df:
-            df = df.assign(**self._NEW_COLUMNS)
-            df["data_types_found"] = self._df_pkg.Series(index=df.index, dtype=self._df_pkg.core.dtypes.ListDtype)
+            findings_ser = df[self._findings_column]
+            is_str_col = findings_ser.dtype != 'list'
+            if is_str_col:
+                # When using --regex_only, the findings column is is a string of comma-separated values, when this
+                # is the case we need to split it into a list of unique strings.
+                df[self._findings_column] = findings_ser.str.replace(', ', ',', regex=False).str.split(',', regex=False)
+
+            # We split the incoming rows by paragraphs, so we need to group by the original source index and
+            # aggregate (flatten) the findings into a single list per source index.
             groups = df.groupby(["original_source_index"], as_index=False)
-            score_fn = functools.partial(self._score_fn,
-                                         findings_column=self._findings_column,
-                                         type_weights=self.type_weights,
-                                         default_weight=self.default_weight,
-                                         df_class=self._df_class)
-            result_df = groups[self._group_cols].apply(score_fn)
-            result_df = result_df.rename(columns={'index': 'original_source_index'})
+            flat_fn = functools.partial(self._mk_flat, findings_column=self._findings_column, df_class=self._df_class)
+            flat_df = groups[self._findings_column].apply(flat_fn)
+
+        if is_str_col:
+            # When using --regex_only we will end up (potentially) with duplicate labels
+            # When not using --regex_only, the findings column is a list of dicts, so we don't need to do this.
+            flat_df[self._findings_column] = flat_df[self._findings_column].list.unique().list.sort_values()
+
+        # Clean up the resulting DataFrame
+        flat_df.index.name = "original_source_index"
+
+        # I'm not sure what this column is, but the value is always 0
+        flat_df.drop(columns='index', inplace=True)
+        flat_df.reset_index(drop=False, inplace=True)
+
+        # I wasn't able to get the _score_fn to work with cuDF DataFrames, so we convert to pandas here.
+        pdf = flat_df.to_pandas()
+
+        score_fn = functools.partial(self._score_fn,
+                                     findings_column=self._findings_column,
+                                     type_weights=self.type_weights,
+                                     default_weight=self.default_weight)
+        result_df = pdf[self._findings_column].apply(score_fn)
+        result_df = self._df_class(result_df)
 
         msg.payload(MessageMeta(result_df))
 
