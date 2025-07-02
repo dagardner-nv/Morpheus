@@ -24,6 +24,7 @@
 #include <mrc/segment/builder.hpp>               // for Segment Builder
 #include <mrc/segment/object.hpp>                // for Segment Object
 #include <pymrc/node.hpp>                        // for PythonNode
+#include <rmm/cuda_stream_pool.hpp>              // for rmm::cuda_stream_pool
 #include <rxcpp/rx.hpp>
 
 #include <map>     // for map
@@ -50,8 +51,7 @@ class MORPHEUS_EXPORT RegexProcessor
     using base_t::subscribe_fn_t;
 
     RegexProcessor(std::string&& source_column_name,
-                   std::vector<std::unique_ptr<cudf::strings::regex_program>>&& regex_patterns,
-                   std::vector<cudf::string_scalar>&& pattern_name_scalars,
+                   const std::map<std::string, std::string>& regex_patterns,
                    bool include_pattern_names);
 
     subscribe_fn_t build_operator();
@@ -62,6 +62,7 @@ class MORPHEUS_EXPORT RegexProcessor
     std::vector<cudf::string_scalar> m_pattern_name_scalars;
     bool m_include_pattern_names = false;
     std::map<std::string, long> m_regex_times_ms;
+    rmm::cuda_stream_pool m_stream_pool;
 };
 
 struct MORPHEUS_EXPORT PassThruStageInterfaceProxy

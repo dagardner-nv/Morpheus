@@ -36,7 +36,6 @@
 #include <pybind11/pybind11.h>
 #include <pymrc/utils.hpp>  // for pymrc::import
 #include <rmm/cuda_stream.hpp>
-#include <rmm/cuda_stream_pool.hpp>  // for rmm::cuda_stream_pool
 #include <rmm/cuda_stream_view.hpp>
 
 #include <cstddef>    // for size_t
@@ -53,20 +52,14 @@
 namespace morpheus_dlp {
 
 RegexProcessor::RegexProcessor(std::string&& source_column_name,
-                               std::vector<std::unique_ptr<cudf::strings::regex_program>>&& regex_patterns,
-                               std::vector<cudf::string_scalar>&& pattern_name_scalars,
+                               const std::map<std::string, std::string>& regex_patterns,
                                bool include_pattern_names) :
   PythonNode(base_t::op_factory_from_sub_fn(build_operator())),
   m_source_column_name(std::move(source_column_name)),
-  m_regex_patterns(std::move(regex_patterns)),
-  m_pattern_name_scalars(std::move(pattern_name_scalars)),
-  m_include_pattern_names(include_pattern_names)
+  m_regex_patterns(regex_patterns.size()),
+  m_include_pattern_names(include_pattern_names),
+  m_stream_pool{regex_patterns.size()}
 {
-    CHECK(m_regex_patterns.size() == m_pattern_name_scalars.size())
-        << "Number of regex patterns must match number of pattern names";
-    CHECK(m_regex_patterns.size() > 0) << "At least one regex pattern must be provided";
-    CHECK(m_regex_patterns.size() > 1) << "C++ impl currently only supports multiple regex patterns";
-
     m_regex_times_ms = {{"alloc", 0},
                         {"launch_futures", 0},
                         {"apply_patterns", 0},
@@ -76,6 +69,20 @@ RegexProcessor::RegexProcessor(std::string&& source_column_name,
                         {"new_meta", 0},
                         {"cm_payload", 0},
                         {"total", 0}};
+
+    std::size_t i = 0;
+    for (const auto& [pattern_name, pattern] : regex_patterns)
+    {
+        m_regex_patterns[i] = cudf::strings::regex_program::create(
+            pattern, cudf::strings::regex_flags::DEFAULT, cudf::strings::capture_groups::NON_CAPTURE);
+        m_pattern_name_scalars.emplace_back(pattern_name, true, m_stream_pool.get_stream(i));
+        ++i;
+    }
+
+    CHECK(m_regex_patterns.size() == m_pattern_name_scalars.size())
+        << "Number of regex patterns must match number of pattern names";
+    CHECK(m_regex_patterns.size() > 0) << "At least one regex pattern must be provided";
+    CHECK(m_regex_patterns.size() > 1) << "C++ impl currently only supports multiple regex patterns";
 }
 
 RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
@@ -99,12 +106,12 @@ RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
                 auto loop_start = std::chrono::steady_clock::now();
 
                 std::vector<std::jthread> regex_ops;
-                rmm::cuda_stream_pool pool{m_regex_patterns.size()};
 
                 for (std::size_t i = 0; i < m_regex_patterns.size(); ++i)
                 {
                     regex_ops.emplace_back([&, i]() {
-                        auto rmm_stream = pool.get_stream(i);
+                        auto rmm_stream = m_stream_pool.get_stream(i);
+
                         // Apply the regex program to the column view
                         boolean_columns[i] = cudf::strings::contains_re(col_view, *m_regex_patterns[i], rmm_stream);
                         boolean_column_views[i] = boolean_columns[i]->view();
@@ -239,22 +246,8 @@ std::shared_ptr<mrc::segment::Object<RegexProcessor>> PassThruStageInterfaceProx
     std::map<std::string, std::string> regex_patterns,
     bool include_pattern_names)
 {
-    std::vector<std::unique_ptr<cudf::strings::regex_program>> cudf_regex_patterns(regex_patterns.size());
-    std::vector<cudf::string_scalar> pattern_name_scalars;
-
-    std::size_t i = 0;
-    for (auto& [pattern_name, pattern] : regex_patterns)
-    {
-        cudf_regex_patterns[i] = cudf::strings::regex_program::create(
-            pattern, cudf::strings::regex_flags::DEFAULT, cudf::strings::capture_groups::NON_CAPTURE);
-        pattern_name_scalars.emplace_back(pattern_name);
-        ++i;
-    }
-    return builder.construct_object<RegexProcessor>(name,
-                                                    std::move(source_column_name),
-                                                    std::move(cudf_regex_patterns),
-                                                    std::move(pattern_name_scalars),
-                                                    include_pattern_names);
+    return builder.construct_object<RegexProcessor>(
+        name, std::move(source_column_name), regex_patterns, include_pattern_names);
 }
 
 namespace py = pybind11;
