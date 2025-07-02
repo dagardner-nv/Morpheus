@@ -112,7 +112,7 @@ RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
                         if (m_include_pattern_names)
                         {
                             label_columns[i] = cudf::copy_if_else(m_pattern_name_scalars[i],
-                                                                  cudf::string_scalar("", false),
+                                                                  cudf::string_scalar("", false, rmm_stream),
                                                                   boolean_column_views[i],
                                                                   rmm_stream);
                         }
