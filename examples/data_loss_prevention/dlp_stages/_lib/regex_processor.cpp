@@ -36,6 +36,7 @@
 #include <pybind11/pybind11.h>
 #include <pymrc/utils.hpp>  // for pymrc::import
 #include <rmm/cuda_stream.hpp>
+#include <rmm/cuda_stream_pool.hpp>  // for rmm::cuda_stream_pool
 #include <rmm/cuda_stream_view.hpp>
 
 #include <cstddef>    // for size_t
@@ -98,11 +99,12 @@ RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
                 auto loop_start = std::chrono::steady_clock::now();
 
                 std::vector<std::jthread> regex_ops;
+                rmm::cuda_stream_pool pool{m_regex_patterns.size()};
 
                 for (std::size_t i = 0; i < m_regex_patterns.size(); ++i)
                 {
                     regex_ops.emplace_back([&, i]() {
-                        rmm::cuda_stream rmm_stream;
+                        auto rmm_stream = pool.get_stream(i);
                         // Apply the regex program to the column view
                         boolean_columns[i] = cudf::strings::contains_re(col_view, *m_regex_patterns[i], rmm_stream);
                         boolean_column_views[i] = boolean_columns[i]->view();
