@@ -39,8 +39,8 @@
 
 #include <cstddef>  // for size_t
 #include <fstream>
-#include <memory>  // for shared_ptr
-#include <numeric>
+#include <memory>   // for shared_ptr
+#include <numeric>  // for iota
 #include <sstream>  // IWYU pragma: keep
 #include <vector>
 // IWYU pragma: no_include <unordered_map>

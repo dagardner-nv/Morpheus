@@ -35,12 +35,15 @@
 #include <pybind11/attr.h>
 #include <pybind11/pybind11.h>
 #include <pymrc/utils.hpp>  // for pymrc::import
+#include <rmm/cuda_stream.hpp>
 #include <rmm/cuda_stream_view.hpp>
 
 #include <cstddef>    // for size_t
 #include <exception>  // for exception_ptr
+#include <future>     // for future
 #include <memory>     // for unique_ptr, shared_ptr
 #include <ostream>    // for operator<<
+#include <thread>     // for thread
 #include <utility>    // for move
 
 // IWYU pragma: no_include <unordered_map>
@@ -64,8 +67,8 @@ RegexProcessor::RegexProcessor(std::string&& source_column_name,
     CHECK(m_regex_patterns.size() > 1) << "C++ impl currently only supports multiple regex patterns";
 
     m_regex_times_ms = {{"alloc", 0},
+                        {"launch_futures", 0},
                         {"apply_patterns", 0},
-                        {"label_copy", 0},
                         {"compute_bool", 0},
                         {"concat_labels", 0},
                         {"bool_mask", 0},
@@ -79,51 +82,61 @@ RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
     return [this](rxcpp::observable<sink_type_t> input, rxcpp::subscriber<source_type_t> output) {
         return input.subscribe(rxcpp::make_observer<sink_type_t>(
             [this, &output](sink_type_t cm_msg) {
-                auto time_start       = std::chrono::steady_clock::now();
-                auto stream           = rmm::cuda_stream_per_thread;
-                auto meta             = cm_msg->payload();
-                auto table_info       = meta->get_info();
-                const auto& col_view  = table_info.get_column(m_source_column_name);
-                const auto col_length = col_view.size();
+                auto time_start      = std::chrono::steady_clock::now();
+                auto meta            = cm_msg->payload();
+                auto table_info      = meta->get_info();
+                const auto& col_view = table_info.get_column(m_source_column_name);
 
                 std::vector<std::unique_ptr<cudf::column>> boolean_columns(m_regex_patterns.size());
                 std::vector<cudf::column_view> boolean_column_views(m_regex_patterns.size());
                 std::vector<std::unique_ptr<cudf::column>> label_columns;
+                if (m_include_pattern_names)
+                {
+                    label_columns.resize(m_regex_patterns.size());
+                }
+
+                auto loop_start = std::chrono::steady_clock::now();
+
+                std::vector<std::jthread> regex_ops;
+
+                for (std::size_t i = 0; i < m_regex_patterns.size(); ++i)
+                {
+                    regex_ops.emplace_back([&, i]() {
+                        rmm::cuda_stream rmm_stream;
+                        // Apply the regex program to the column view
+                        boolean_columns[i] = cudf::strings::contains_re(col_view, *m_regex_patterns[i], rmm_stream);
+                        boolean_column_views[i] = boolean_columns[i]->view();
+
+                        if (m_include_pattern_names)
+                        {
+                            label_columns[i] = cudf::copy_if_else(m_pattern_name_scalars[i],
+                                                                  cudf::string_scalar("", false),
+                                                                  boolean_column_views[i],
+                                                                  rmm_stream);
+                        }
+
+                        rmm_stream.synchronize();
+                    });
+                }
+
+                auto loop_end = std::chrono::steady_clock::now();
+
+                for (auto& regex_op : regex_ops)
+                {
+                    regex_op.join();
+                }
+
+                auto apply_patterns = std::chrono::steady_clock::now();
 
                 namespace ast = cudf::ast;
                 ast::tree tree{};
                 std::vector<ast::column_reference> column_references;
 
-                auto loop_start = std::chrono::steady_clock::now();
-
-                for (std::size_t i = 0; i < m_regex_patterns.size(); ++i)
+                for (std::size_t i = 0; i < boolean_column_views.size(); ++i)
                 {
-                    auto itr_start = std::chrono::steady_clock::now();
-                    // Apply the regex program to the column view
-                    boolean_columns[i]      = cudf::strings::contains_re(col_view, *m_regex_patterns[i], stream);
-                    boolean_column_views[i] = boolean_columns[i]->view();
-
                     column_references.emplace_back(i);
                     tree.push(column_references.back());
-
-                    auto apply_patterns = std::chrono::steady_clock::now();
-
-                    if (m_include_pattern_names)
-                    {
-                        label_columns.emplace_back(cudf::copy_if_else(m_pattern_name_scalars[i],
-                                                                      cudf::string_scalar("", false),
-                                                                      boolean_column_views[i],
-                                                                      stream));
-                    }
-
-                    auto label_copy = std::chrono::steady_clock::now();
-                    m_regex_times_ms["apply_patterns"] +=
-                        std::chrono::duration_cast<std::chrono::milliseconds>(apply_patterns - itr_start).count();
-                    m_regex_times_ms["label_copy"] +=
-                        std::chrono::duration_cast<std::chrono::milliseconds>(label_copy - apply_patterns).count();
                 }
-
-                auto loop_end = std::chrono::steady_clock::now();
 
                 tree.push(ast::operation{ast::ast_operator::LOGICAL_OR, column_references[0], column_references[1]});
                 for (std::size_t i = 2; i < column_references.size(); ++i)
@@ -133,7 +146,7 @@ RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
 
                 auto boolean_table = cudf::table_view(boolean_column_views);
                 const auto& expr   = tree.back();
-                auto bool_col      = cudf::compute_column(boolean_table, expr, stream);
+                auto bool_col      = cudf::compute_column(boolean_table, expr);
 
                 auto compute_bool = std::chrono::steady_clock::now();
 
@@ -147,8 +160,7 @@ RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
                     labels_col        = cudf::strings::concatenate(labels_view,
                                                             cudf::string_scalar(", "),
                                                             cudf::string_scalar(""),
-                                                            cudf::strings::separator_on_nulls::NO,
-                                                            stream);
+                                                            cudf::strings::separator_on_nulls::NO);
                     std::vector<cudf::column_view> columns{table_view.begin(), table_view.end()};
                     columns.push_back(labels_col->view());
                     table_view = cudf::table_view(columns);
@@ -156,7 +168,7 @@ RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
 
                 auto concat_labels = std::chrono::steady_clock::now();
 
-                auto table = cudf::apply_boolean_mask(table_view, bool_col->view(), stream);
+                auto table = cudf::apply_boolean_mask(table_view, bool_col->view());
 
                 auto bool_mask = std::chrono::steady_clock::now();
 
@@ -188,8 +200,12 @@ RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
 
                 m_regex_times_ms["alloc"] +=
                     std::chrono::duration_cast<std::chrono::milliseconds>(loop_start - time_start).count();
+                m_regex_times_ms["launch_futures"] +=
+                    std::chrono::duration_cast<std::chrono::milliseconds>(loop_end - loop_start).count();
+                m_regex_times_ms["apply_patterns"] +=
+                    std::chrono::duration_cast<std::chrono::milliseconds>(apply_patterns - loop_end).count();
                 m_regex_times_ms["compute_bool"] +=
-                    std::chrono::duration_cast<std::chrono::milliseconds>(compute_bool - loop_end).count();
+                    std::chrono::duration_cast<std::chrono::milliseconds>(compute_bool - apply_patterns).count();
                 m_regex_times_ms["concat_labels"] +=
                     std::chrono::duration_cast<std::chrono::milliseconds>(concat_labels - compute_bool).count();
                 m_regex_times_ms["bool_mask"] +=
