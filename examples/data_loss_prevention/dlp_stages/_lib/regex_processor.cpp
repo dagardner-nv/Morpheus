@@ -18,6 +18,7 @@
 #include "regex_processor.hpp"  // IWYU pragma: associated
 
 #include <cudf/ast/expressions.hpp>     // for cudf::ast::tree, cudf::ast::column_reference, ast_operator
+#include <cudf/binaryop.hpp>            // for binary_operation
 #include <cudf/column/column.hpp>       // for cudf::column
 #include <cudf/column/column_view.hpp>  // for column_view
 #include <cudf/copying.hpp>             // for cudf::copy_if_else
@@ -85,14 +86,10 @@ RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
                 auto table_info       = meta->get_info();
                 const auto& col_view  = table_info.get_column(m_source_column_name);
                 const auto col_length = col_view.size();
+                auto cudf_bool_type   = cudf::data_type{cudf::type_id::BOOL8};
 
-                std::vector<std::unique_ptr<cudf::column>> boolean_columns(m_regex_patterns.size());
-                std::vector<cudf::column_view> boolean_column_views(m_regex_patterns.size());
+                std::unique_ptr<cudf::column> boolean_column{nullptr};
                 std::vector<std::unique_ptr<cudf::column>> label_columns;
-
-                namespace ast = cudf::ast;
-                ast::tree tree{};
-                std::vector<ast::column_reference> column_references;
 
                 auto loop_start = std::chrono::steady_clock::now();
 
@@ -100,21 +97,29 @@ RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
                 {
                     auto itr_start = std::chrono::steady_clock::now();
                     // Apply the regex program to the column view
-                    boolean_columns[i]      = cudf::strings::contains_re(col_view, *m_regex_patterns[i], stream);
-                    boolean_column_views[i] = boolean_columns[i]->view();
-
-                    column_references.emplace_back(i);
-                    tree.push(column_references.back());
-
-                    auto apply_patterns = std::chrono::steady_clock::now();
+                    auto result_col = cudf::strings::contains_re(col_view, *m_regex_patterns[i], stream);
 
                     if (m_include_pattern_names)
                     {
-                        label_columns.emplace_back(cudf::copy_if_else(m_pattern_name_scalars[i],
-                                                                      cudf::string_scalar("", false),
-                                                                      boolean_column_views[i],
-                                                                      stream));
+                        label_columns.emplace_back(cudf::copy_if_else(
+                            m_pattern_name_scalars[i], cudf::string_scalar("", false), result_col->view(), stream));
                     }
+
+                    if (boolean_column == nullptr)
+                    {
+                        boolean_column.swap(result_col);
+                    }
+                    else
+                    {
+                        // Combine the results with a logical OR
+                        boolean_column = cudf::binary_operation(boolean_column->view(),
+                                                                result_col->view(),
+                                                                cudf::binary_operator::LOGICAL_OR,
+                                                                cudf_bool_type,
+                                                                stream);
+                    }
+
+                    auto apply_patterns = std::chrono::steady_clock::now();
 
                     auto label_copy = std::chrono::steady_clock::now();
                     m_regex_times_ms["apply_patterns"] +=
@@ -124,16 +129,6 @@ RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
                 }
 
                 auto loop_end = std::chrono::steady_clock::now();
-
-                tree.push(ast::operation{ast::ast_operator::LOGICAL_OR, column_references[0], column_references[1]});
-                for (std::size_t i = 2; i < column_references.size(); ++i)
-                {
-                    tree.push(ast::operation{ast::ast_operator::LOGICAL_OR, tree.back(), column_references[i]});
-                }
-
-                auto boolean_table = cudf::table_view(boolean_column_views);
-                const auto& expr   = tree.back();
-                auto bool_col      = cudf::compute_column(boolean_table, expr, stream);
 
                 auto compute_bool = std::chrono::steady_clock::now();
 
@@ -156,7 +151,7 @@ RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
 
                 auto concat_labels = std::chrono::steady_clock::now();
 
-                auto table = cudf::apply_boolean_mask(table_view, bool_col->view(), stream);
+                auto table = cudf::apply_boolean_mask(table_view, boolean_column->view(), stream);
 
                 auto bool_mask = std::chrono::steady_clock::now();
 
