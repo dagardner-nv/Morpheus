@@ -17,14 +17,16 @@
 
 #pragma once
 
-#include <cudf/scalar/scalar.hpp>                // for cudf::string_scalar
-#include <cudf/strings/regex/regex_program.hpp>  // for cudf::strings::regex_program
-#include <morpheus/export.h>                     // for exporting symbols
-#include <morpheus/messages/control.hpp>         // for ControlMessage
-#include <mrc/segment/builder.hpp>               // for Segment Builder
-#include <mrc/segment/object.hpp>                // for Segment Object
-#include <pymrc/node.hpp>                        // for PythonNode
-#include <rmm/cuda_stream_pool.hpp>              // for rmm::cuda_stream_pool
+#include <cudf/scalar/scalar.hpp>                        // for cudf::string_scalar
+#include <cudf/strings/regex/regex_program.hpp>          // for cudf::strings::regex_program
+#include <morpheus/export.h>                             // for exporting symbols
+#include <morpheus/messages/control.hpp>                 // for ControlMessage
+#include <mrc/segment/builder.hpp>                       // for Segment Builder
+#include <mrc/segment/object.hpp>                        // for Segment Object
+#include <pymrc/node.hpp>                                // for PythonNode
+#include <rmm/cuda_stream_pool.hpp>                      // for rmm::cuda_stream_pool
+#include <rmm/mr/device/cuda_async_memory_resource.hpp>  // for rmm::mr::cuda_async_memory_resource
+#include <rmm/resource_ref.hpp>                          // for device_async_resource_ref
 #include <rxcpp/rx.hpp>
 
 #include <map>     // for map
@@ -63,6 +65,8 @@ class MORPHEUS_EXPORT RegexProcessor
     bool m_include_pattern_names = false;
     std::map<std::string, long> m_regex_times_ms;
     rmm::cuda_stream_pool m_stream_pool;
+    rmm::mr::cuda_async_memory_resource m_async_mr;
+    rmm::device_async_resource_ref m_mr;
 };
 
 struct MORPHEUS_EXPORT PassThruStageInterfaceProxy

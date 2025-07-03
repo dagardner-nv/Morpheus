@@ -37,6 +37,11 @@
 #include <pymrc/utils.hpp>  // for pymrc::import
 #include <rmm/cuda_stream.hpp>
 #include <rmm/cuda_stream_view.hpp>
+#include <rmm/mr/device/cuda_async_memory_resource.hpp>
+#include <rmm/mr/device/cuda_memory_resource.hpp>
+#include <rmm/mr/device/device_memory_resource.hpp>
+#include <rmm/mr/device/per_device_resource.hpp>
+#include <rmm/resource_ref.hpp>
 
 #include <cstddef>    // for size_t
 #include <exception>  // for exception_ptr
@@ -58,7 +63,9 @@ RegexProcessor::RegexProcessor(std::string&& source_column_name,
   m_source_column_name(std::move(source_column_name)),
   m_regex_patterns(regex_patterns.size()),
   m_include_pattern_names(include_pattern_names),
-  m_stream_pool{regex_patterns.size()}
+  m_stream_pool{regex_patterns.size()},
+  m_async_mr{},
+  m_mr{rmm::to_device_async_resource_ref_checked(&m_async_mr)}
 {
     m_regex_times_ms = {{"alloc", 0},
                         {"launch_futures", 0},
@@ -75,7 +82,7 @@ RegexProcessor::RegexProcessor(std::string&& source_column_name,
     {
         m_regex_patterns[i] = cudf::strings::regex_program::create(
             pattern, cudf::strings::regex_flags::DEFAULT, cudf::strings::capture_groups::NON_CAPTURE);
-        m_pattern_name_scalars.emplace_back(pattern_name, true, m_stream_pool.get_stream(i));
+        m_pattern_name_scalars.emplace_back(pattern_name, true, m_stream_pool.get_stream(i), m_mr);
         ++i;
     }
 
@@ -113,7 +120,8 @@ RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
                         auto rmm_stream = m_stream_pool.get_stream(i);
 
                         // Apply the regex program to the column view
-                        boolean_columns[i] = cudf::strings::contains_re(col_view, *m_regex_patterns[i], rmm_stream);
+                        boolean_columns[i] =
+                            cudf::strings::contains_re(col_view, *m_regex_patterns[i], rmm_stream, m_mr);
                         boolean_column_views[i] = boolean_columns[i]->view();
 
                         if (m_include_pattern_names)
@@ -121,7 +129,8 @@ RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
                             label_columns[i] = cudf::copy_if_else(m_pattern_name_scalars[i],
                                                                   cudf::string_scalar("", false, rmm_stream),
                                                                   boolean_column_views[i],
-                                                                  rmm_stream);
+                                                                  rmm_stream,
+                                                                  m_mr);
                         }
 
                         rmm_stream.synchronize();
@@ -155,7 +164,7 @@ RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
 
                 auto boolean_table = cudf::table_view(boolean_column_views);
                 const auto& expr   = tree.back();
-                auto bool_col      = cudf::compute_column(boolean_table, expr);
+                auto bool_col      = cudf::compute_column(boolean_table, expr, m_stream_pool.get_stream(), m_mr);
 
                 auto compute_bool = std::chrono::steady_clock::now();
 
@@ -177,7 +186,7 @@ RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
 
                 auto concat_labels = std::chrono::steady_clock::now();
 
-                auto table = cudf::apply_boolean_mask(table_view, bool_col->view());
+                auto table = cudf::apply_boolean_mask(table_view, bool_col->view(), m_stream_pool.get_stream(), m_mr);
 
                 auto bool_mask = std::chrono::steady_clock::now();
 
