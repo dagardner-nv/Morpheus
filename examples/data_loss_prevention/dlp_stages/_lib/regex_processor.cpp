@@ -64,8 +64,7 @@ RegexProcessor::RegexProcessor(std::string&& source_column_name,
   m_regex_patterns(regex_patterns.size()),
   m_include_pattern_names(include_pattern_names),
   m_stream_pool{regex_patterns.size()},
-  m_async_mr{},
-  m_mr{rmm::to_device_async_resource_ref_checked(&m_async_mr)}
+  m_async_mr{std::make_unique<rmm::mr::cuda_async_memory_resource>()}
 {
     m_regex_times_ms = {{"alloc", 0},
                         {"launch_futures", 0},
@@ -82,7 +81,7 @@ RegexProcessor::RegexProcessor(std::string&& source_column_name,
     {
         m_regex_patterns[i] = cudf::strings::regex_program::create(
             pattern, cudf::strings::regex_flags::DEFAULT, cudf::strings::capture_groups::NON_CAPTURE);
-        m_pattern_name_scalars.emplace_back(pattern_name, true, m_stream_pool.get_stream(i), m_mr);
+        m_pattern_name_scalars.emplace_back(pattern_name, true, m_stream_pool.get_stream(i));
         ++i;
     }
 
@@ -117,11 +116,11 @@ RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
                 for (std::size_t i = 0; i < m_regex_patterns.size(); ++i)
                 {
                     regex_ops.emplace_back([&, i]() {
+                        auto mr         = rmm::to_device_async_resource_ref_checked(m_async_mr.get());
                         auto rmm_stream = m_stream_pool.get_stream(i);
 
                         // Apply the regex program to the column view
-                        boolean_columns[i] =
-                            cudf::strings::contains_re(col_view, *m_regex_patterns[i], rmm_stream, m_mr);
+                        boolean_columns[i] = cudf::strings::contains_re(col_view, *m_regex_patterns[i], rmm_stream, mr);
                         boolean_column_views[i] = boolean_columns[i]->view();
 
                         if (m_include_pattern_names)
@@ -130,7 +129,7 @@ RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
                                                                   cudf::string_scalar("", false, rmm_stream),
                                                                   boolean_column_views[i],
                                                                   rmm_stream,
-                                                                  m_mr);
+                                                                  mr);
                         }
 
                         rmm_stream.synchronize();
@@ -162,9 +161,10 @@ RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
                     tree.push(ast::operation{ast::ast_operator::LOGICAL_OR, tree.back(), column_references[i]});
                 }
 
+                auto mr            = rmm::to_device_async_resource_ref_checked(m_async_mr.get());
                 auto boolean_table = cudf::table_view(boolean_column_views);
                 const auto& expr   = tree.back();
-                auto bool_col      = cudf::compute_column(boolean_table, expr, m_stream_pool.get_stream(), m_mr);
+                auto bool_col      = cudf::compute_column(boolean_table, expr, m_stream_pool.get_stream(0), mr);
 
                 auto compute_bool = std::chrono::steady_clock::now();
 
@@ -186,7 +186,7 @@ RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
 
                 auto concat_labels = std::chrono::steady_clock::now();
 
-                auto table = cudf::apply_boolean_mask(table_view, bool_col->view(), m_stream_pool.get_stream(), m_mr);
+                auto table = cudf::apply_boolean_mask(table_view, bool_col->view(), m_stream_pool.get_stream(0), mr);
 
                 auto bool_mask = std::chrono::steady_clock::now();
 

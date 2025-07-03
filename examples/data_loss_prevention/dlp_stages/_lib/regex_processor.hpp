@@ -65,8 +65,7 @@ class MORPHEUS_EXPORT RegexProcessor
     bool m_include_pattern_names = false;
     std::map<std::string, long> m_regex_times_ms;
     rmm::cuda_stream_pool m_stream_pool;
-    rmm::mr::cuda_async_memory_resource m_async_mr;
-    rmm::device_async_resource_ref m_mr;
+    std::unique_ptr<rmm::mr::cuda_async_memory_resource> m_async_mr;
 };
 
 struct MORPHEUS_EXPORT PassThruStageInterfaceProxy
