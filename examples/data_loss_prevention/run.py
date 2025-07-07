@@ -18,6 +18,9 @@ import os
 import pathlib
 
 import click
+import rmm
+
+rmm.mr.set_current_device_resource(rmm.mr.CudaAsyncMemoryResource())
 from dlp_stages.datasets_source import DatasetsSourceStage
 from dlp_stages.dlp_input_processor import DLPInputProcessor
 from dlp_stages.gliner_processor import GliNERProcessor
@@ -30,6 +33,7 @@ from morpheus.config import Config
 from morpheus.config import PipelineModes
 from morpheus.pipeline import LinearPipeline
 from morpheus.stages.general.monitor_stage import MonitorStage
+from morpheus.stages.general.trigger_stage import TriggerStage
 from morpheus.stages.input.file_source_stage import FileSourceStage
 from morpheus.stages.output.write_to_file_stage import WriteToFileStage
 from morpheus.stages.postprocess.serialize_stage import SerializeStage
@@ -170,7 +174,9 @@ def main(log_level: int,
     pipeline.add_stage(MonitorStage(config, description="Input Processor"))
 
     if not model_only:
+        # pipeline.add_stage(TriggerStage(config))
         pipeline.add_stage(RegexProcessor(config, patterns_file=regex_file, include_pattern_names=regex_only))
+        # pipeline.add_stage(TriggerStage(config))
 
         pipeline.add_stage(MonitorStage(config, description="Regex Processor"))
 

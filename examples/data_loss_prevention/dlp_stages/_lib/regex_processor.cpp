@@ -91,6 +91,12 @@ RegexProcessor::RegexProcessor(std::string&& source_column_name,
     CHECK(m_regex_patterns.size() > 1) << "C++ impl currently only supports multiple regex patterns";
 }
 
+RegexProcessor::~RegexProcessor()
+{
+    m_pattern_name_scalars.clear();
+    m_async_mr.reset();
+}
+
 RegexProcessor::subscribe_fn_t RegexProcessor::build_operator()
 {
     return [this](rxcpp::observable<sink_type_t> input, rxcpp::subscriber<source_type_t> output) {

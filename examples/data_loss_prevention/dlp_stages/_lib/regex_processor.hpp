@@ -55,6 +55,7 @@ class MORPHEUS_EXPORT RegexProcessor
     RegexProcessor(std::string&& source_column_name,
                    const std::map<std::string, std::string>& regex_patterns,
                    bool include_pattern_names);
+    ~RegexProcessor() override;
 
     subscribe_fn_t build_operator();
 
