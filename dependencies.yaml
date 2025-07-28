@@ -181,13 +181,6 @@ files:
       - checks
       - python
 
-  # morpheus-dfp pip dependencies are published as a morpheus_dfp package data file
-  morpheus_dfp:
-    output: requirements
-    requirements_dir: python/morpheus_dfp/morpheus_dfp
-    matrix:
-      arch: [x86_64, aarch64]
-
   # morpheus-llm pip dependencies are published as a morpheus_llm package data file
   morpheus_llm:
     output: requirements
@@ -435,11 +428,9 @@ dependencies:
                 # Milvus does not have arm64 builds for linux
                 - &milvus milvus==2.3.5 # update to match pymilvus when available
                 - &pymilvus pymilvus==2.3.6
-          # - matrix:
-          #     arch: aarch64
-          #   packages:
-          #     - pip:
-          #       - &torch torch==2.4.0
+          - matrix:
+              arch: aarch64
+
 
   test_python_morpheus:
     common:
