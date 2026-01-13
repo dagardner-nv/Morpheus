@@ -310,7 +310,7 @@ dependencies:
           - libcudf=25.06
           - librdkafka=2.6.1
           - libzlib>=1.3.1,<1.4
-          - &mrc mrc=25.10.00a=cuda_12.8_py312_h4606832_15
+          - &mrc mrc=25.10
           - nlohmann_json=3.11
           - pybind11-stubgen=0.10.5
           - pylibcudf=25.06
