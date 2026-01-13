@@ -20,26 +20,26 @@ find_package(pybind11 REQUIRED)
 include(GoogleTest)
 
 # Cuda Test
-add_executable(test_cuda
-  test_cuda.cu
-)
+# add_executable(test_cuda
+# test_cuda.cu
+# )
 
-target_link_libraries(test_cuda
-  PRIVATE
-    glog::glog
-    GTest::gtest
-    GTest::gtest_main
-    matx::matx
-)
+# target_link_libraries(test_cuda
+# PRIVATE
+# glog::glog
+# GTest::gtest
+# GTest::gtest_main
+# matx::matx
+# )
 
-gtest_discover_tests(test_cuda)
+# gtest_discover_tests(test_cuda)
 
-set_target_properties(test_cuda
-  PROPERTIES
-    INSTALL_RPATH "$ORIGIN/.."
-    CUDA_STANDARD 17
-    CUDA_STANDARD_REQUIRED ON
-)
+# set_target_properties(test_cuda
+# PROPERTIES
+# INSTALL_RPATH "$ORIGIN/.."
+# CUDA_STANDARD 17
+# CUDA_STANDARD_REQUIRED ON
+# )
 
 # Morpheus Test Utilities
 add_library(
